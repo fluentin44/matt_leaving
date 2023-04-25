@@ -13,16 +13,16 @@ website:
     contents:
       - href: index.qmd
         text: Home
-      - single_cell.qmd
-      - single_nuclear.qmd
-      - pseudotime.qmd
+      - whole_muscle_scrnaseq.qmd
+      - myob_single_nuc.qmd
       - atac_seq.qmd
       - conda_envs.qmd
-      # - section: "Layout"
-      #   # contents:
-      #   #   - layout.qmd
-      #   #   - layout-knitr.qmd
-      #   #   - layout-jupyter.qmd
+      - extra_tips.qmd
+      - section: "Single cell"
+        contents:
+          - single_cell.qmd
+          - pseudotime.qmd
+          - pseudobulk.qmd
   title: "Matt work summary"
   # navbar:
   #   left:

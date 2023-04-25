@@ -8,8 +8,6 @@ This is a summary of my work, covering as far as possible details on:
 
 -   Single nuclear
 
--   RNAseq
-
 -   Pseudobulk
 
 -   ATACseq

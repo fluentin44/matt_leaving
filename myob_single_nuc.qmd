@@ -1,0 +1,11 @@
+---
+title: "Myoblast single nuclear"
+---
+
+# Summary
+
+# Setup
+
+-   Raw data is located at `/research/muscledata/Shared_folder/22-06-01-snrna_seq/bsg-ftp.well.ox.ac.uk/220427_A00711_0538_BH7VMTDMXY/`
+
+-   Not started - aim was to optomise on whole muscle single nuclear and go from there.

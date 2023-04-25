@@ -1,0 +1,221 @@
+---
+title: "Extra tips"
+---
+
+# Cycling through files
+
+Often you will need to work a lot of files through a single function i.e. looping over names. There are a couple of ways of doing this below, both of which work on roughly the same principal. They will take a name such as MB18b_S2_R2_001.fastq.gz, split it into 'fields', demarcated by '\_', so MB18b is field 1 and S2 is field 2. This is done by `cut -d'_' -f 1-2` , where f1-2 are the fields 1 and 2. You need to pick the fields which let you separate out your samples from each other.
+
+in the single nuclear you can do a below (complicated). `declare -p newArr` will show all the names that are going to be looped over.
+
+```{bash}
+arr=($id)
+# Get central bit of filename
+arr_names=()
+for i in "${arr[@]}"
+do
+	arr_names+=("$(echo $i | cut -d'_' -f 1-3)")
+done
+declare -p arr_names
+
+# Get only the unique filenames
+newArr=(); 
+while IFS= read -r -d '' x; 
+do newArr+=("$x"); 
+done < <(printf "%s\0" "${arr_names[@]}" | sort -uz)
+declare -p newArr
+
+# Loop over those names in the function
+for i in ${newArr[@]}
+do
+
+fastp \
+-w 16 \
+-p \
+-Q \
+-l 50 \
+-i /scratch/moh1u21/single_nuclear/bsg-ftp.well.ox.ac.uk/220427_A00711_0538_BH7VMTDMXY/fastqs/${i}_2.fastq.gz \
+-o results/raw/trimmed/trimmed_${i}_2.fastq.gz \
+--adapter_sequence=AGCAGTGGTATCAACGCAGAGTGAATGGG \
+--adapter_fasta /scratch/moh1u21/23-01-30-whole_muscle_snrnaseq/data/adapters.fasta \
+--trim_poly_g \
+--trim_poly_x \
+--cut_tail \
+--cut_mean_quality 30 \
+--html results/raw/fastp_reports/trimmed_${i}_fastp_report.html \
+--json results/raw/fastp_reports/trimmed_${i}_fastp_report.json >> $fastp_logfile 2>&1
+
+seqkit pair \
+--read1 /scratch/moh1u21/single_nuclear/bsg-ftp.well.ox.ac.uk/220427_A00711_0538_BH7VMTDMXY/fastqs/${i}_1.fastq.gz \
+--read2 "$project_folder"/results/raw/trimmed/trimmed_${i}_2.fastq.gz \
+--out-dir "$project_folder"/results/raw/final_fqs
+
+done 
+```
+
+Alternatively you can use a package called parallel, which effectively gets all the names, puts them in a file and will put them into a function iteratively wherever you put a {} as below.
+
+```{bash}
+# Below will get only the names of files (not folders) in the specified directory. 
+find /scratch/moh1u21/ATAC_seq_test/data/demultiplexed_reads/ATAC_seq_test/ -maxdepth 1 -type f | awk -F/ '{print $NF}' | cut -d"_" -f1-2 | sort | uniq > fast_files.txt
+
+# cat fast_files.txt | parallel \
+# fastq_info final_fqs/{}_1.fastq.gz final_fqs/trimmed_{}_2.fastq.gz '>>' Results.txt '2>&1'
+
+cat fast_files.txt | parallel \
+fastp \
+-w 16 \
+-p \
+--length_required 50 \
+-i data/demultiplexed_reads/ATAC_seq_test/{}_R1_001.fastq.gz \
+-I data/demultiplexed_reads/ATAC_seq_test/{}_R2_001.fastq.gz \
+-o data/demultiplexed_reads/trimmed/trimmed_{}_R1_001.fastq.gz \
+-O data/demultiplexed_reads/trimmed/trimmed_{}_R2_001.fastq.gz \
+--detect_adapter_for_pe \
+--correction \
+--trim_poly_g \
+--trim_poly_x \
+--cut_tail \
+--cut_mean_quality 30 \
+--html results/reports/fastp/{}_trimmed_fastp_report.html \
+--json results/reports/fastp/{}_trimmed_fastp_report.json '>' $fastp_logfile '2>&1'
+
+```
+
+# Looking for script
+
+If you ever have a file and you need to find the script which generated it, you can use the below code to find the file in which it is written.
+
+```{bash}
+#!/bin/bash
+
+# Set the directory path and search string
+DIRECTORY="path/to/your/folder"
+SEARCH_STRING="your_line_of_code"
+
+# Search for the specific line of code in R script files
+find ./ -name "*.R" -type f -exec awk -v search_string="enrichment_results" '
+  $0 ~ search_string {
+    printf "%s:%s:%s\n", FILENAME, FNR, $0
+  }' {} \;
+```
+
+# General enrichment
+
+-   The code takes a table with the most differentially expressed markers for a single cell dataset by cluster. The universe in this case is all protein-coding genes in the genome. An example of the input markers object is hashed below.
+
+    ```{r}
+    #                p_val avg_log2FC pct.1 pct.2     p_val_adj cluster   gene
+    # TNNT1  1.510251e-192  1.4501320 0.961 0.376 2.587512e-188       0  TNNT1
+    # ATP2A2  7.443596e-87  0.7266991 0.667 0.242  1.275311e-82       0 ATP2A2
+    # TPM3    2.308168e-84  0.5415437 0.867 0.366  3.954584e-80       0   TPM3
+    # LGR5    9.075674e-71  0.6019044 0.452 0.118  1.554935e-66       0   LGR5
+    # BICC1   1.202617e-64  0.6783576 0.549 0.202  2.060444e-60       0  BICC1
+    # MYBPC1  2.295684e-59  0.5507988 0.996 0.895  3.933196e-55       0 MYBPC1
+
+    library(org.Hs.eg.db)
+    library(tidyverse)
+    library(clusterProfiler)
+    library(AnnotationDbi)
+
+    markers <- readRDS("data/wholemuscle_sn_allmarkers.rds")
+
+    # Set up my universe ------------------------------------------------------
+    ## Get a list of all Entrez Gene IDs
+    entrez_ids <- keys(org.Hs.eg.db, keytype = "ENTREZID")
+
+    ## Get the corresponding gene symbols
+    gene_info <- 
+      AnnotationDbi::select(org.Hs.eg.db, 
+                            keys = entrez_ids, 
+                            columns = c("SYMBOL", "GENETYPE"), 
+                            keytype = "ENTREZID")
+
+    protein_coding_genes <- gene_info[gene_info$GENETYPE == "protein-coding",]
+    universe <- pull(protein_coding_genes, SYMBOL)
+
+
+    # Process data ------------------------------------------------------------
+    nested <- 
+      markers %>%
+      filter(p_val_adj<0.05) %>% 
+      dplyr::group_by(cluster) %>% 
+      group_map(~pull(.x, gene))
+
+    # universe <- shrink.d11$GeneID
+
+    enrichment_results <- 
+      map(
+        nested,
+        ~ enrichGO(
+          gene = .x,
+          universe = universe, 
+          OrgDb = org.Hs.eg.db,
+          keyType = "SYMBOL",
+          ont = "ALL",
+          pvalueCutoff = 0.05,
+          readable = TRUE
+        )
+      ) %>%
+      map(as_tibble) %>%
+      map( ~ filter(.x, Count >= 3)) 
+
+    names(enrichment_results) <- str_c("Cluster_", seq(0, length(enrichment_results)-1, 1))
+    enrichment_results_export <- bind_rows(enrichment_results, .id="cluster")
+
+    norbs <- 
+      enrichment_results_export %>% 
+      group_by(cluster) %>% 
+      arrange(cluster, p.adjust, .by_group = T)
+
+    table(norbs$cluster)
+
+    abbles <- 
+      norbs %>% 
+      group_by(cluster) %>% 
+      slice(1:10)
+
+    write_csv(norbs, "results/enrichment_results_ss.csv")
+    write_csv(abbles, "results/cluster_markers_top10s.csv")
+    ```
+
+-   The code could be modified as below to run a single set of genes - NOT RUN -
+
+    ```{r}
+    library(org.Hs.eg.db)
+    library(tidyverse)
+    library(clusterProfiler)
+    library(AnnotationDbi)
+
+    markers <- readRDS("data/wholemuscle_sn_allmarkers.rds")
+
+    # Set up my universe ------------------------------------------------------
+    ## Get a list of all Entrez Gene IDs
+    entrez_ids <- keys(org.Hs.eg.db, keytype = "ENTREZID")
+
+    ## Get the corresponding gene symbols
+    gene_info <- 
+      AnnotationDbi::select(org.Hs.eg.db, 
+                            keys = entrez_ids, 
+                            columns = c("SYMBOL", "GENETYPE"), 
+                            keytype = "ENTREZID")
+
+    protein_coding_genes <- gene_info[gene_info$GENETYPE == "protein-coding",]
+    universe <- pull(protein_coding_genes, SYMBOL)
+
+
+    # Process data ------------------------------------------------------------
+
+    enrichment_results <- 
+      enrichGO(
+          gene = "<character vector containing genes of interest>",
+          universe = universe, 
+          OrgDb = org.Hs.eg.db,
+          keyType = "SYMBOL",
+          ont = "ALL",
+          pvalueCutoff = 0.05,
+          readable = TRUE
+        ) %>%
+      as_tibble %>%
+      filter(Count >= 3)
+    ```

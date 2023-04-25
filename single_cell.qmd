@@ -1,3 +1,286 @@
 ---
-title: "Single Cell"
+title: "Overview"
 ---
+
+# Summary
+
+# Setup 
+
+-   Single cell has been previously aligned with a pipeline developed at UoS, based on the [McCarrol lab protocol](https://github.com/broadinstitute/Drop-seq/releases), albeit with modification to allow for multi-mapping reads, but with no capacity to account for intronic reads. It was implemented by Elie Antoun.
+
+-   All raw data is located on Elies HD - `Omics Myoblasts scRNAseq`
+
+-   All raw script files (prior to any modification) are located at `/Users/fluentin44/Library/CloudStorage/OneDrive-UniversityofSouthampton/21-11-18-single_cell_seq/src/raw` .
+
+-   I have reclustered and performed a number of subsequent analyses including pseudobulk, pseudotime,
+
+-   Most recent Seurat object - `~/Library/CloudStorage/OneDrive-UniversityofSouthampton/21-11-18-single_cell_seq/data/processed/22-11-29-master_updated.rds`
+
+# Diagrams
+
+## Dot plot heatmap
+
+-   To do dot-plot heat maps (i.e. showing distribution of expression for a single gene)
+
+    ```{r}
+    suppressMessages(library(Seurat))
+    suppressMessages(library(kBET))
+    suppressMessages(library(PCAtools))
+    suppressMessages(library(tidyverse))
+    suppressMessages(library(FNN))
+    suppressMessages(library(scater))
+    suppressMessages(library(scran))
+    suppressMessages(library(SingleCellExperiment))
+    suppressMessages(library(BiocSingular))
+    suppressMessages(library(tidyverse))
+    suppressMessages(library(celda))
+    suppressMessages(library(clustree))
+    suppressMessages(library(org.Hs.eg.db))
+
+    sso <- readRDS("data/processed/22-11-29-master_updated.rds")
+
+    # Search for individual genes to see if they exist in the dataset
+    rownames(sso)[grep("^MK", rownames(sso), ignore.case=T)]
+
+    # Makes a big feature plot with all the heatmap 
+    FeaturePlot(sso, features = c("H19",
+                                  "MKI67",
+                                  "TOP2A",
+                                  "PCNA",
+                                  "CCNE2",
+                                  "CCND1",
+                                  "CCND2",
+                                  "CENPK",
+                                  "CDC6",
+                                  "TNNT2",
+                                  "MYH3",
+                                  "MYOG",
+                                  "SQSTM1",
+                                  "GSTP1",
+                                  "NQO1",
+                                  "POSTN",
+                                  "FBN1",
+                                  "TTN",
+                                  "HES1",
+                                  "BRCA1", 
+                                  "BRCA2",
+                                  "COX5B",
+                                  "ACTA2", 
+                                  "ACTA1", 
+                                  "RAD21",
+                                  "RAD51AP1",
+                                  "NES", 
+                                  "MEF2C",
+                                  "DES",
+                                  "MYF5",
+                                  "CDKN1A",
+                                  "CDKN2A",
+                                  "FTH1",
+                                  "FTL",
+                                  "MYOD1"),
+                ncol=4)
+
+
+    # You need to be able to state the gene symbol exactly - list them here
+    genes_of_interest <- c(
+      "myoD",
+      "myf5",
+      "Top2a",
+      "MK167",
+      "PRC1",
+      "cox6A1",
+      "SQSTM1",
+      "WIPI1",
+      "RPL31",
+      "GSTP1",
+      "POSTN",
+      "WNT5A",
+      "ACTNA",
+      "Il-6",
+      "CTNNB1",
+      "FTL",
+      "FTH1",
+      "TXN",
+      "IGFBP7",
+      "KRT7",
+      "CD248",
+      "BGN",
+      "MMP2",
+      "p53",
+      "PINK",
+      "Col1a1",
+      "FN1",
+      "SERPINE1",
+      "ccnd1",
+      "PGC1a", # PPARGC1A
+      "BNIP3"
+    )
+
+    # The function below wil return those with an exact match (i.e. one gene withg that name)
+    affle <- 
+      map(genes_of_interest, ~{
+        rownames(sso)[grep(paste0("^", .x), rownames(sso), ignore.case=T)]
+      }) %>%  
+      keep(~ length(.) == 1) %>% 
+      list_c()
+
+    # The rest of the genes you will have to search for in the dataset with the below line, 
+    # pick the gene and put in the [previously] unknowns 
+    rownames(sso)[grep(paste0("^", "<gene name>"), rownames(sso), ignore.case=T)]
+
+    unknowns <- c(
+      "IGFBP7",
+      "MMP2",
+      "TXN",
+      "WNT5A",
+      "TGFB1",
+      "COX6A1",
+      "PRC1",
+      "MKI67",
+      "ACTN2",
+      "IL6",
+      "KRT7",
+      "PPARGC1A",
+      "BNIP3"
+    )
+
+    # This will put all the gene names together saved in a dot images folder
+    final <- c(unknowns, affle)
+
+    # This will make individual heatmaps for each one
+    ork <-
+      final %>%
+      imap( ~ FeaturePlot(sso, features = .x, pt.size = 0.35))
+    ork <- setNames(ork, final)
+    dir.create("dot_images")
+    ork %>%
+      imap(~{
+        namies <- .y
+        print(namies)
+        ggsave(filename = paste0("dot_images/", namies, ".png"), 
+               plot = .x,
+               width = 7,
+               height = 6,
+               units = "in")
+      })
+
+    # This will make violin plots for each one saved in a vln images folder
+    ork_vln <-
+      final %>%
+      imap( ~ VlnPlot(sso, features = .x))
+    ork_vln <- setNames(ork_vln, final)
+    dir.create("vln_images")
+    ork_vln %>%
+      imap(~{
+        namies <- .y
+        print(namies)
+        ggsave(filename = paste0("vln_images/", namies, ".png"), 
+               plot = .x,
+               width = 7,
+               height = 6,
+               units = "in")
+      })
+    ```
+
+## Violin plots
+
+-   The code to create violin plots of almi, gait and grip values for the cells (the people to which they belong) per cluster is outlined below.
+
+-   The file is located at `~/Library/CloudStorage/OneDrive-UniversityofSouthampton/21-11-18-single_cell_seq/src/22-12-07-violinplots.R` .
+
+    ```{r}
+    meta %>% 
+      dplyr::select(ID, cluster_id, almhsq, xamaxgrip, xwspdms) %>% 
+      mutate(across(ID, as_factor)) %>% 
+      tibble()
+
+    sample_size <- 
+      meta_data %>% 
+      group_by(cluster_id) %>% 
+      summarize(num=n()) %>% 
+      left_join(meta_data, ., by="cluster_id") %>% 
+      mutate(myaxis = paste0(cluster_id, "\n", "n=", num))
+
+    # Stacked + percent
+    ggplot(sample_size, aes(x=forcats::fct_reorder(myaxis, xwspdms, .fun=median, na.rm=T), y=xwspdms, fill=cluster_id)) + 
+      geom_violin() +
+      geom_boxplot(width=0.1, color="black", alpha=0.2) +
+      xlab("Cluster") +
+      theme(legend.position="none") +
+      labs(title = "Gait speed per cluster",
+           subtitle = "Clusters ordered by ascending gait speed")
+
+
+    ggplot(sample_size, aes(x=forcats::fct_reorder(myaxis, xamaxgrip, .fun=median, na.rm=T), y=xamaxgrip, fill=cluster_id)) + 
+      geom_violin() +
+      geom_boxplot(width=0.1, color="black", alpha=0.2) +
+      xlab("class") +
+      theme(legend.position="none") +
+      labs(title = "Grip strength per cluster",
+           subtitle = "Clusters ordered by ascending grip strength")
+
+
+    ggplot(sample_size, aes(x=forcats::fct_reorder(myaxis, almhsq, .fun=median, na.rm=T), y=almhsq, fill=cluster_id)) + 
+      geom_violin() +
+      geom_boxplot(width=0.1, color="black", alpha=0.2) +
+      xlab("class") +
+      theme(legend.position="none") +
+      labs(title = "ALMI per cluster",
+           subtitle = "Clusters ordered by ascending ALMI")
+
+
+    blorder <- c(                              
+      "0\nn=7280", 
+      "1\nn=7057", 
+      "2\nn=5803", 
+      "3\nn=5756", 
+      "4\nn=3927", 
+      "5\nn=3404", 
+      "6\nn=3328",
+      "7\nn=632",  
+      "8\nn=400",  
+      "9\nn=376", 
+      "10\nn=374", 
+      "11\nn=173", 
+      "12\nn=125")
+
+
+    a <- 
+    sample_size %>% 
+      mutate(myaxis = fct_relevel(myaxis, blorder)) %>% 
+      ggplot(aes(x=myaxis, y=almhsq, fill=cluster_id)) + 
+      geom_violin() +
+      geom_boxplot(width=0.1, color="black", alpha=0.2) +
+      xlab("class") +
+      theme(legend.position="none") +
+      labs(title = "ALMI per cluster",
+           subtitle = "Clusters ordered by ascending ALMI")
+
+    b <- 
+    sample_size %>% 
+      mutate(myaxis = fct_relevel(myaxis, blorder)) %>% 
+      ggplot(aes(x=myaxis, y=xamaxgrip, fill=cluster_id)) + 
+      geom_violin() +
+      geom_boxplot(width=0.1, color="black", alpha=0.2) +
+      xlab("class") +
+      theme(legend.position="none") +
+      labs(title = "xamaxgrip per cluster",
+           subtitle = "Clusters ordered by ascending xamaxgrip")
+    c <- 
+    sample_size %>% 
+      mutate(myaxis = fct_relevel(myaxis, blorder)) %>% 
+      ggplot(aes(x=myaxis, y=xwspdms, fill=cluster_id)) + 
+      geom_violin() +
+      geom_boxplot(width=0.1, color="black", alpha=0.2) +
+      xlab("class") +
+      theme(legend.position="none") +
+      labs(title = "xwspdms per cluster",
+           subtitle = "Clusters ordered by ascending xwspdms")
+
+    ggpubr::ggarrange(a,b,c,                                                 # First row with scatter plot
+              nrow = 3, 
+              labels = c("A", "B", "C")                                        # Labels of the scatter plot
+    ) 
+    ```
+
+# Shiny cell

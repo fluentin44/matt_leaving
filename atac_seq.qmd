@@ -4,25 +4,13 @@ title: "ATACseq"
 
 # Summary
 
-This aimed to develop the start of an ATACseq pipeline. This pipeline currently:
-
-1.  Demultiplexes (optional)
-2.  Accepts two fastq files (paired)
-3.  Conducts fastqc on each file, multiqc (aggregated files)
-4.  Trims reads
-5.  Conducts fastqc on each file, multiqc (aggregated files) - needs to be checked for an estimation as to whether adapter sequences have been removed.
-6.  Aligns to GRCh37 genome
-7.  Converts sam to bam
-8.  Aims to:
-    -   Remove MTs
-
-    -   Deduplicate
-
-    -   Remove non-uniques
+This aimed to develop the start of an ATACseq pipeline.
 
 # Setup
 
 -   The ATAC seq project folder is `/scratch/moh1u21/ATAC_seq_test`
+
+-   The raw data is at `/scratch/moh1u21/ATAC_seq_test/data/230209_NB501007_0340_AHFFGFAFX5`
 
 -   The work was conducted in an apptainer environment, atacseq_1.0.sif in the uppermost level of the project folder. The apptainer environment can be started with:
 
@@ -218,7 +206,10 @@ genomedir=/scratch/moh1u21/ATAC_seq_test/GRCh37
 mkdir -p results/reports/fastp
 mkdir -p results/reports/fastqc
 mkdir -p results/reports/multiqc
+mkdir -p results/reports/bowtie2
 mkdir -p results/logs
+mkdir -p results/sams
+mkdir -p results/bams
 mkdir -p data/trimmed
 
 fastp_logfile=results/logs/fastp_log.txt
@@ -235,29 +226,11 @@ multiqc results_test/reports/fastqc \
 
 # 2. Adapter removal and deduplication
 
-# id=$(ls data/test_files)
-
-# arr=($id)
-# # Get central bit of filename
-# arr_names=()
-# for i in "${arr[@]}"
-# do
-# 	arr_names+=("$(echo $i | cut -d'_' -f 1-2)")
-# done
-# declare -p arr_names
-
-# # Get only the unique filenames
-# newArr=(); 
-# while IFS= read -r -d '' x; 
-# do newArr+=("$x"); 
-# done < <(printf "%s\0" "${arr_names[@]}" | sort -uz)
-# declare -p newArr
-
-# find /scratch/moh1u21/ATAC_seq_test/data/demultiplexed_reads/ATAC_seq_test/ -maxdepth 1 -type f | cut -d"_" -f1-2 | sort | uniq > fast_files.txt
-find /scratch/moh1u21/ATAC_seq_test/data/demultiplexed_reads/ATAC_seq_test/ -maxdepth 1 -type f | awk -F/ '{print $NF}' | cut -d"_" -f1-2 | sort | uniq > fast_files.txt
-
-# cat fast_files.txt | parallel \
-# fastq_info final_fqs/{}_1.fastq.gz final_fqs/trimmed_{}_2.fastq.gz '>>' Results.txt '2>&1'
+find /scratch/moh1u21/ATAC_seq_test/data/demultiplexed_reads/ATAC_seq_test/ -maxdepth 1 -type f | \
+awk -F/ '{print $NF}' | \
+cut -d"_" -f1-2 | \
+sort | \
+uniq > fast_files.txt
 
 cat fast_files.txt | parallel \
 fastp \
@@ -268,6 +241,7 @@ fastp \
 -I data/demultiplexed_reads/ATAC_seq_test/{}_R2_001.fastq.gz \
 -o data/demultiplexed_reads/trimmed/trimmed_{}_R1_001.fastq.gz \
 -O data/demultiplexed_reads/trimmed/trimmed_{}_R2_001.fastq.gz \
+--detect_adapter_for_pe \
 --correction \
 --trim_poly_g \
 --trim_poly_x \
@@ -275,28 +249,6 @@ fastp \
 --cut_mean_quality 30 \
 --html results/reports/fastp/{}_trimmed_fastp_report.html \
 --json results/reports/fastp/{}_trimmed_fastp_report.json '>' $fastp_logfile '2>&1'
-
-# for i in ${newArr[@]}
-# do
-
-# fastp \
-# -w 16 \
-# -p \
-# --length_required 50 \
-# -i data/demultiplexed_reads/ATAC_seq_test/${i}_R1_001.fastq.gz \
-# -I data/demultiplexed_reads/ATAC_seq_test/${i}_R2_001.fastq.gz \
-# -o data/demultiplexed_reads/trimmed/trimmed_${i}_R1_001.fastq.gz \
-# -O data/demultiplexed_reads/trimmed/trimmed_${i}_R2_001.fastq.gz \
-# --adapter_fasta data/adapters.fasta \
-# --correction \
-# --trim_poly_g \
-# --trim_poly_x \
-# --cut_tail \
-# --cut_mean_quality 30 \
-# --html results/reports/fastp/trimmed_${i}_fastp_report.html \
-# --json results/reports/fastp/trimmed_${i}_fastp_report.json >> $fastp_logfile 2>&1
-
-# done 
 
 fastqc data/demultiplexed_reads/trimmed/*.fastq.gz \
 -o results/reports/fastqc/ \
@@ -321,23 +273,16 @@ multiqc results/reports/fastqc/ \
 
 ## 3.2. Align
 
-cat fast_files.txt | parallel --dry-run \
+cat fast_files.txt | parallel \
 bowtie2 --very-sensitive \
  -q \
  -x /scratch/moh1u21/ATAC_seq_test/GRCh37/GRCh37 \
  -1 data/demultiplexed_reads/trimmed/trimmed_{}_R1_001.fastq.gz \
  -2 data/demultiplexed_reads/trimmed/trimmed_{}_R2_001.fastq.gz \
- -S results/{}_test_aligned.sam 2>> {}_bt2log_test_aligned.log
-
- 
-#  | samtools view -@ 60 -Shu - \
-#  | samtools sort - -O {}_aligned.bam '>>' bw2_alignment.txt '2>&1'
+ -S results/sams/{}_test_aligned.sam '2>>' results/reports/bowtie2/{}_bt2log_test_aligned.log
 
 cat fast_files.txt | parallel \
-samtools view -h -S -b {}_test_aligned.sam -o {}_test_aligned.bam 
-
-# https://yiweiniu.github.io/blog/2019/03/ATAC-seq-data-analysis-from-FASTQ-to-peaks/
-# https://informatics.fas.harvard.edu/atac-seq-guidelines.html
+samtools view -h -S -b results/sams/{}_test_aligned.sam -o results/bams/{}_test_aligned.bam 
 
 # # 4. Remove MTs
 # samtools view -h  <inBAM>  |  removeChrom - - chrM  |  samtools view -b -  >  <outBAM>
@@ -352,5 +297,4 @@ samtools view -h -S -b {}_test_aligned.sam -o {}_test_aligned.bam
 # module load ATAC-seq
 # samtools view -h  <BAM>  |  SAMtoBED  -i -  -o <BED>  -x  -v
 # macs2 callpeak  -t <BED>  -f BEDPE  -n NAME  -g ce  --keep-dup all
-
 ```

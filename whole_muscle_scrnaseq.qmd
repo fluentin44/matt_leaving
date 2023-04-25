@@ -1,18 +1,271 @@
 ---
-title: "Single nuclear"
+title: "Whole muscle single nuclear"
 ---
+
+# Summary
 
 # Setup
 
 -   The project folder is `/scratch/moh1u21/23-01-30-whole_muscle_snrnaseq`
 
--   All work for the 'bash bit' was done in the qc_env conda environment, and the 'R bit' was done in the sc_qc conda environment.
+-   The raw data is at `/scratch/moh1u21/23-01-30-whole_muscle_snrnaseq/data/230126_NB501007_0335_AH3K2FAFX5`
+
+-   All work for the 'bash bit' was potentially done in the qc_env conda environment, or the qc_and_alignment.sif apptainer and the 'R bit' was done in the sc_qc conda environment.
+
+-   If the bash bit doesn't work - remove any commented lines, can get a bit funny with those sometimes.
+
+-   This pipeline deviates from the code used for the single cell alignment, as the previous single cell alignment pipeline based on the pipeline proposed by the McCarrol lab did not account for intronic reads and was inflexible with regards to multi-mapping reads.
 
 # 'Bash bit'
 
+-   The file for the bash bit is located at `/scratch/moh1u21/23-01-30-whole_muscle_snrnaseq/src/solo_alignment_trimR2only.sh`.
+
+```{bash}
+ 
+cd /scratch/moh1u21/23-01-05-single_nuclear
+
+echo $PATH | sed 's/:/\n/g' | sort | uniq -c
+today=$(date +"%Y-%m-%d")
+
+# Set up project folders and environmental variables
+
+project_folder=/scratch/moh1u21/23-01-05-single_nuclear
+# genomedir=/Users/fluentin44/Documents/22-05-15-index_genome/genome_index_hg19 
+genomedir=/scratch/moh1u21/22-05-15-index_genome/hg19_ensembl
+
+mkdir -p "$project_folder"/results/logs
+mkdir -p "$project_folder"/results/raw/solo_output
+mkdir -p "$project_folder"/results/raw/fastqs
+mkdir -p "$project_folder"/results/raw/fastqc
+mkdir -p "$project_folder"/results/raw/multiqc
+mkdir -p "$project_folder"/results/raw/trimmed
+mkdir -p "$project_folder"/results/raw/final_fqs
+mkdir -p "$project_folder"/results/raw/fastp_reports
+
+fastp_logfile=results/logs/fastp_log.txt
+star_logfile=results/logs/star_log.txt
+
+# tmpdir="$project_folder"/tmp_dir
+solo_folder="$project_folder"/results/raw/solo_output
+
+# fastqc data/full_reads/*_2.fastq \
+# -o results/solo_folder/fastqcs/pre-trim/fastqc_reports/
+
+# Do an initial QC of the reads
+
+fastqc /scratch/moh1u21/single_nuclear/bsg-ftp.well.ox.ac.uk/220427_A00711_0538_BH7VMTDMXY/fastqs/*.fastq.gz \
+-o results/raw/fastqc/ \
+-t 60 \
+--contaminants /scratch/moh1u21/ATAC_seq_test/data/adapters.txt
+
+multiqc results/raw/fastqc/ \
+-o results/raw/multiqc/ \
+-n multiqc_pre_trim
+
+# Cycle though the files to do a trim of read 2 (read one is index etc, not aligned and would be detrimental. to lose any info)
+id=$(ls /scratch/moh1u21/single_nuclear/bsg-ftp.well.ox.ac.uk/220427_A00711_0538_BH7VMTDMXY/fastqs)
+
+arr=($id)
+# Get central bit of filename
+arr_names=()
+for i in "${arr[@]}"
+do
+	arr_names+=("$(echo $i | cut -d'_' -f 1-3)")
+done
+declare -p arr_names
+
+# Get only the unique filenames
+newArr=(); 
+while IFS= read -r -d '' x; 
+do newArr+=("$x"); 
+done < <(printf "%s\0" "${arr_names[@]}" | sort -uz)
+declare -p newArr
+
+for i in ${newArr[@]}
+do
+
+fastp \
+-w 16 \
+-p \
+-Q \
+-l 50 \
+-i /scratch/moh1u21/single_nuclear/bsg-ftp.well.ox.ac.uk/220427_A00711_0538_BH7VMTDMXY/fastqs/${i}_2.fastq.gz \
+-o results/raw/trimmed/trimmed_${i}_2.fastq.gz \
+--adapter_sequence=AGCAGTGGTATCAACGCAGAGTGAATGGG \
+--adapter_fasta /scratch/moh1u21/23-01-30-whole_muscle_snrnaseq/data/adapters.fasta \
+--trim_poly_g \
+--trim_poly_x \
+--cut_tail \
+--cut_mean_quality 30 \
+--html results/raw/fastp_reports/trimmed_${i}_fastp_report.html \
+--json results/raw/fastp_reports/trimmed_${i}_fastp_report.json >> $fastp_logfile 2>&1
+
+# fastP will remove and reads in the R2 file with too low a quality, which will leave the partner read in R1 
+seqkit pair \
+--read1 /scratch/moh1u21/single_nuclear/bsg-ftp.well.ox.ac.uk/220427_A00711_0538_BH7VMTDMXY/fastqs/${i}_1.fastq.gz \
+--read2 "$project_folder"/results/raw/trimmed/trimmed_${i}_2.fastq.gz \
+--out-dir "$project_folder"/results/raw/final_fqs
+
+done 
+
+fastqc results/raw/final_fqs/*.fastq.gz \
+-o results/raw/fastqc/ \
+-t 60 \
+--contaminants /scratch/moh1u21/ATAC_seq_test/data/adapters.txt
+
+multiqc results/raw/fastqc/ \
+-o results/raw/multiqc/ \
+-n multiqc_post_trim
+
+
+# id=$(ls results/raw/trimmed)
+
+# arr=($id)
+# # Get central bit of filename
+# arr_names=()
+# for i in "${arr[@]}"
+# do
+# 	arr_names+=("$(echo $i | cut -d'_' -f 1-4)")
+# done
+# declare -p arr_names
+
+# # Get only the unique filenames
+# newArr=(); 
+# while IFS= read -r -d '' x; 
+# do newArr+=("$x"); 
+# done < <(printf "%s\0" "${arr_names[@]}" | sort -uz)
+# declare -p newArr
+
+# mkdir -p results/solo_folder/output/bams
+# mkdir -p results/solo_folder/output/final_logs
+# mkdir -p results/solo_folder/output/other_logs
+
+for i in ${newArr[@]}
+do
+
+fastq_1=results/raw/final_fqs/${i}_1.fastq.gz
+fastq_2=results/raw/final_fqs/trimmed_${i}_2.fastq.gz
+echo ${fastq_1}
+echo ${fastq_2}
+
+STAR \
+--runThreadN 60 \
+--genomeDir ${genomedir} \
+--outFileNamePrefix ${solo_folder}/sample_${i}_star. \
+--readFilesIn ${fastq_2} ${fastq_1} \
+--soloType CB_UMI_Simple \
+--readFilesCommand zcat \
+--soloCBwhitelist None \
+--soloCBstart 1 \
+--soloCBlen 12 \
+--soloUMIstart 13 \
+--soloUMIlen 8 \
+--soloBarcodeReadLength 0 \
+--soloStrand Unstranded \
+--soloCellFilter EmptyDrops_CR 1000 0.99 10 45000 90000 1000 0.01 20000 0.01 10000 \
+--outSAMattributes All CB UB sM sS sQ uT RG \
+--outSAMattrRGline ID:${i} SM:${i} \
+--outSAMtype BAM SortedByCoordinate \
+--outMultimapperOrder Random \
+--soloCellReadStats Standard \
+--soloFeatures Gene GeneFull Velocyto \
+--soloMultiMappers EM \
+--outFilterMultimapNmax 10 >> $star_logfile 2>&1
+
+# STAR \
+# --runThreadN 60 \
+# --readFilesCommand zcat \
+# --genomeDir ${genomedir} \
+# --outFileNamePrefix ${solo_folder}/sample_${i}_star. \
+# --readFilesIn $fastq_2 $fastq_1 \
+# --soloType CB_UMI_Simple \
+# --soloCBstart 1 \
+# --soloCBlen 12 \
+# --soloUMIstart 13 \
+# --soloUMIlen 8 \
+# --soloCBwhitelist None \
+# --clipAdapterType CellRanger4 \
+# --soloBarcodeReadLength  0 \
+# --soloStrand Unstranded \
+# --outSAMattributes NH HI nM AS CR UR CB UB sS sQ RG sM \
+# --outSAMattrRGline ID:${i} SM:${i} \
+# --outSAMtype BAM SortedByCoordinate \
+# --outMultimapperOrder Random \
+# --soloCellFilter  EmptyDrops_CR \
+# --soloCellReadStats Standard \
+# --soloFeatures Gene GeneFull Velocyto \
+# --soloMultiMappers EM \
+# --outFilterMultimapNmax 10
+
+# mv ${solo_folder}/*.bam ${solo_folder}/output/bams
+# mv ${solo_folder}/*.Log.final.out ${solo_folder}/output/final_logs
+# mv ${solo_folder}/*.Log.out ${solo_folder}/*.Log.progress.out ${solo_folder}/*.SJ.out.tab ${solo_folder}/output/other_logs
+
+done
+
+mkdir -p "$project_folder"/results/raw/solo_output/bams
+mkdir -p "$project_folder"/results/raw/solo_output/final_logs
+mkdir -p "$project_folder"/results/raw/solo_output/progress_logs
+mkdir -p "$project_folder"/results/raw/solo_output/sj_outs
+mkdir -p "$project_folder"/results/raw/solo_output/process_logs
+mkdir -p "$project_folder"/results/raw/solo_output/results_data
+
+mv 	"$project_folder"/results/raw/solo_output/*.bam \
+	"$project_folder"/results/raw/solo_output/bams
+mv 	"$project_folder"/results/raw/solo_output/*.Log.final.out \
+	"$project_folder"/results/raw/solo_output/final_logs
+mv 	"$project_folder"/results/raw/solo_output/*.Log.progress.out \
+	"$project_folder"/results/raw/solo_output/progress_logs
+mv 	"$project_folder"/results/raw/solo_output/*.SJ.out.tab \
+	"$project_folder"/results/raw/solo_output/sj_outs
+mv 	"$project_folder"/results/raw/solo_output/*star.Log.out \
+	"$project_folder"/results/raw/solo_output/process_logs
+mv 	"$project_folder"/results/raw/solo_output/*star.Solo.out \
+	"$project_folder"/results/raw/solo_output/results_data
+
+# --soloCellFilter EmptyDrops_CR 1000 0.99 10 45000 90000 1000 0.01 20000 0.01 10000 \
+
+# fastq_1=data/full_reads/WTCHG_928874_CU001_1.fastq
+# fastq_2=data/full_reads/WTCHG_928874_CU001_2.fastq
+# echo ${fastq_1}
+# echo ${fastq_2}
+
+
+
+# STAR \
+# --runThreadN 60 \
+# --genomeDir ${genomedir} \
+# --outFileNamePrefix ${solo_folder}/sample_CU001_star. \
+# --readFilesIn ${fastq_2} ${fastq_1} \
+# --soloType CB_UMI_Simple \
+# --soloCBwhitelist None \
+# --soloCBstart 1 \
+# --soloCBlen 12 \
+# --soloUMIstart 13 \
+# --soloUMIlen 8 \
+# --soloBarcodeReadLength 0 \
+# --soloStrand Unstranded \
+# --clipAdapterType CellRanger4 \
+# --soloCellFilter EmptyDrops_CR \
+# --outSAMattributes All RG \
+# --outSAMattrRGline ID:CU001 SM:CU001 \
+# --outSAMtype BAM SortedByCoordinate \
+# --outMultimapperOrder Random \
+# --soloCellReadStats Standard \
+# --soloFeatures Gene GeneFull Velocyto \
+# --soloMultiMappers EM \
+# --outFilterMultimapNmax 10
+```
+
 # 'R bit'
 
--   This will involve the
+-   The below script is at `/scratch/moh1u21/23-01-30-whole_muscle_snrnaseq/src/whole_muscle_dsn_qc.R`
+
+-   Ive saved a number of objects along the way, so you shouldnt have to run the whole thing again and again, and i'd advise you not to as it may change slightly each time, or over time.
+
+-   Note - the final Seurat object does not exclude doublets (of which there were not many - have been documented in csv files produced along the way) and background contamination (again few cells with significant contamination) - ideally would have done so but ran out of time. This diverges from what may be typically expected and the next person to take on this code may wish to carry on in this vein.
+
+-   Note - a threshold of 4.5 was chosen for single nuclear as graphs showed samples with high mitochondrial gene expression also with high read count, indicating should not necessarily be removed.
 
 ```{r}
 suppressPackageStartupMessages(library(DropletUtils))
@@ -713,10 +966,4 @@ all_markers %>%
   write_tsv("boops.tsv")
 
 saveRDS(seur_scaled, "data/23-04-20-wm_sn_master_seurat.rds")
-
-
 ```
-
-# Diagrams
-
-## Dot plot heatmap
