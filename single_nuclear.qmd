@@ -1,0 +1,709 @@
+---
+title: "Single nuclear"
+---
+
+# Setup
+
+-   The project folder is `/scratch/moh1u21/23-01-30-whole_muscle_snrnaseq`
+
+-   All work was done in the sc_qc
+
+```{r}
+---
+title: "Single Cell"
+---
+
+{r}
+suppressPackageStartupMessages(library(DropletUtils))
+suppressPackageStartupMessages(library(reticulate))
+suppressPackageStartupMessages(library(singleCellTK))
+suppressPackageStartupMessages(library(AnnotationHub))
+suppressPackageStartupMessages(library(SingleCellExperiment))
+suppressPackageStartupMessages(library(scater))
+suppressPackageStartupMessages(library(ensembldb))
+suppressPackageStartupMessages(library(BiocParallel))
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(patchwork))
+suppressPackageStartupMessages(library(ggvenn))
+suppressPackageStartupMessages(library(magrittr))
+suppressPackageStartupMessages(library(Seurat))
+suppressPackageStartupMessages(library(clustree))
+suppressPackageStartupMessages(library(scran))
+suppressPackageStartupMessages(library(bluster))
+
+# use_python("/Users/fluentin44/miniconda3/envs/sc_qc/bin/python")
+
+# bp.params <- MulticoreParam(workers = 30)
+
+# BiocManager::install(c("DropletUtils",
+#                        "AnnotationHub",
+#                        "SingleCellExperiment",
+#                        "scater",
+#                        "ensembldb",
+#                        "singleCellTK",
+#                        "BiocParallel"
+#                        ))
+# install.packages(c("BiocManager",
+#                    "reticulate",
+#                    "patchwork",
+#                    "ggvenn",
+#                    "tidyverse"
+#                    ))
+
+bibs <- readRDS("data/bibs.rds")
+
+set.seed(9816)
+
+bibs_qcd <- 
+  runBarcodeRankDrops(
+    bibs,
+    sample = colData(bibs)$sample,
+    useAssay = "counts",
+    lower = 500,
+    fitBounds = NULL,
+    df = 20
+  )
+
+plots <- 
+  plotBarcodeRankScatter(
+    bibs_qcd,
+    sample = colData(bibs_qcd)$sample,
+    defaultTheme = FALSE,
+    dotSize = 0.5,
+    title = NULL,
+    titleSize = 12,
+    xlab = NULL,
+    ylab = NULL,
+    axisSize = 12,
+    axisLabelSize = 15,
+    legendSize = 10,
+    combinePlot = "all",
+    sampleRelHeights = 1,
+    sampleRelWidths = 1
+  )
+
+# # adjust to add titles to plots
+# plots <- flatten(plots)
+# plots[[1]] + labs(title="Plot of length \n by dose")
+# gridExtra::grid.arrange(grobs=plots, ncol=3)
+
+bibs_qcd <- 
+  runEmptyDrops(
+    bibs_qcd,
+    lower = 500,
+    sample = colData(bibs)$sample,
+    retain = 1000
+    # BPPARAM = bp.params
+  )
+
+table(duplicated(rownames(bibs_qcd)))
+rownames(bibs_qcd) <- scuttle::uniquifyFeatureNames(rownames(bibs_qcd), rowData(bibs_qcd)$feature_name)
+rowData(bibs_qcd)$updated_feature_name <- rownames(bibs_qcd)
+table(duplicated(rownames(bibs_qcd)))
+# saveRDS(bibs_qcd, "data/bibs_qcd.rds")
+bibs_qcd <- readRDS("data/bibs_qcd.rds")
+
+bibs_ed <- bibs_qcd 
+
+# abbles <-  
+# runDropletQC(
+#   bibs,
+#   algorithms = c("QCMetrics", "emptyDrops", "barcodeRanks"),
+#   sample = colData(bibs)$sample,
+#   useAssay = "counts",
+#   paramsList = NULL
+# )
+
+
+# Testing whether emptyDrops is sound -------------------------------------
+
+set.seed(100)
+all.out <- emptyDrops(counts(bibs), lower=500, retain=1000, test.ambient=TRUE)
+hist(all.out$PValue[all.out$Total <= 500 & all.out$Total > 0],
+     xlab="P-value", main="", col="grey80") 
+
+mean(all.out$PValue[all.out$Total <= 500 & all.out$Total > 0] <= 0.05)
+
+# is.cell <- abbles$dropletUtils_emptyDrops_fdr <= 0.001
+# sum(is.cell, na.rm=TRUE)
+
+# saveRDS(bibs_ed, "empty_dropped_sce.rds")
+# bibs_ed <- readRDS("empty_dropped_sce.rds")
+
+
+# Plot empty drops results ------------------------------------------------
+
+plotEmptyDropsResults(bibs_ed, sample=bibs_ed$samples)
+summary(bibs_ed$dropletUtils_emptyDrops_fdr <= 0.001)
+table(Sig=bibs_ed$dropletUtils_emptyDrops_fdr <= 0.001, Limited=bibs_ed$dropletUtils_emptyDrops_limited)
+
+colData(bibs_ed) %>%
+  as.data.frame() %>% 
+  filter(dropletUtils_emptyDrops_fdr <= 0.001) %>%
+  filter(!is.na(dropletUtils_emptyDrops_fdr)) %>%
+  group_by(sample) %>%
+  summarise(cells=n()) %T>%
+  readr::write_excel_csv("results/cellno_per_sample.csv", col_names=T)
+
+bibs_dropped <- bibs_ed[,which(bibs_ed$dropletUtils_emptyDrops_fdr <= 0.001)]
+bibs_dropped <- bibs_dropped[,!is.na(bibs_dropped$dropletUtils_emptyDrops_fdr)]
+
+is.cell <- bibs_ed$dropletUtils_emptyDrops_fdr <= 0.001
+sum(is.cell, na.rm=TRUE)
+
+# set.seed(12345)
+# bibsy <- runCellQC(bibs_dropped, 
+#                    algorithms = c(
+#                      "QCMetrics", 
+#                      "scrublet", 
+#                      "scDblFinder", 
+#                      "cxds",
+#                      "bcds",
+#                      "cxds_bcds_hybrid",
+#                      "doubletFinder", 
+#                      "decontX"
+#                     #  "soupX"
+#                    ), 
+#                    background=bibs_ed,
+#                    mitoPrefix="^MT-",
+#                    sample = colData(bibs_dropped)$sample
+#                    )
+# 
+# # saveRDS(bibsy, "data/bibsy.rds")
+# bibsy <- readRDS("data/bibsy.rds")
+# 
+# table(colData(bibsy)$scrublet_call)
+# table(colData(bibsy)$scDblFinder_doublet_call)
+# length(which(colData(bibsy)$decontX_contamination < 0.4))
+# 
+# hist(colData(bibsy)$decontX_contamination)
+
+
+# # Normalization.
+# set.seed(1234)
+# bibsy_umap <- logNormCounts(bibsy)
+# dec <- modelGeneVar(bibsy_umap)
+# hvg <- getTopHVGs(dec, prop=0.1)
+# bibsy_umap <- runPCA(bibsy_umap, ncomponents=25, subset_row=hvg)
+# colLabels(bibsy_umap) <- clusterCells(bibsy_umap, use.dimred='PCA',
+#     BLUSPARAM=NNGraphParam(cluster.fun="louvain"))    
+# bibsy_umap <- runUMAP(bibsy_umap, dimred = 'PCA')
+# plotUMAP(bibsy_umap, colour_by="label")
+
+
+# oncle <- 
+#   plotDecontXResults(
+#     bibsy,
+#     reducedDimName="decontX_sample_a_178K400_UMAP"
+#   )
+
+
+
+# Diagnostic plots --------------------------------------------------------
+
+genesPerCell <- colSums(counts(bibs_dropped) > 0)
+summary(genesPerCell)
+plot(density(genesPerCell), main="", xlab="Genes per cell")
+
+tmpCounts <- counts(bibs_dropped)[,1:1000]
+
+plot(rowSums(tmpCounts),
+     rowMeans(tmpCounts > 0),
+     log = "x",
+     xlab="total number of UMIs",
+     ylab="proportion of cells expressing the gene"
+)
+
+rm(tmpCounts)
+
+rel_expression <- t( t(counts(bibs_dropped)) / colSums(counts(bibs_dropped))) * 100
+rownames(rel_expression) <- rowData(bibs_dropped)$feature_name
+most_expressed <- sort(rowSums( rel_expression ),T)[20:1]
+plot_data <- as.matrix(t(rel_expression[names(most_expressed),]))
+
+boxplot(plot_data, cex=0.1, las=1, xlab="% total count per cell", horizontal=TRUE)
+
+# Remove genes with zero expression across cell pop.
+detected_genes <- rowSums(counts(bibs_dropped)) > 0
+table(detected_genes)
+bibs_dropped <- bibs_dropped[detected_genes,]
+
+
+# ah <- AnnotationHub()
+# ens.mm.98 <- query(ah, c("Homo sapiens", "EnsDb", 98))[[1]] 
+
+# genes <- rowData(bibs_dropped)$feature_ID
+# gene_annot <- AnnotationDbi::select(ens.mm.98, 
+#                                     keys = genes,
+#                                     keytype = "GENEID",
+#                                     columns = c("GENEID", "SEQNAME")) %>%
+#     set_names(c("ID", "Chromosome"))
+# rowData(bibs_dropped) <- merge(rowData(bibs_dropped), gene_annot, 
+#                                 by.x = "feature_ID", 
+#                                 by.y = "ID", 
+#                                 all.x=TRUE, 
+#                                 sort=FALSE)
+# rownames(rowData(bibs_dropped)) <- rowData(bibs_dropped)$feature_ID
+
+
+# QC ----------------------------------------------------------------------
+
+# Assess number of mitochondrial genes in dataset
+jobbo <- bibs_dropped[grep("^MT-",rownames(bibs_dropped)),]
+# jobbo <- rowData(bibs_dropped)[grep("^MT",rowData(bibs_dropped)$Chromosome),]
+table(rownames(rowData(bibs_dropped)) %in% rownames(jobbo))
+
+head(rowData(bibs_dropped))
+
+# Tag mito ogenes as mito
+is.mito <- grep("^MT-",rownames(bibs_dropped))
+
+# QC of cells - lib size, features, mito, discard
+sce <- addPerCellQC(bibs_dropped, subsets=list(Mito=is.mito))
+cell_qc_results <- quickPerCellQC(colData(sce), percent_subsets=c("subsets_Mito_percent"))
+colSums(as.data.frame(cell_qc_results))
+
+# Add qc results back into sce object
+sce$low_lib_size <- cell_qc_results$low_lib_size
+sce$low_n_features <- cell_qc_results$low_n_features
+sce$high_Mito_percent <- cell_qc_results$high_subsets_Mito_percent
+sce$discard <- cell_qc_results$discard
+sce$sn_high_Mito_percent <- isOutlier(sce$subsets_Mito_percent, type="higher", min.diff=0.5) # adjustment for snuclear
+
+summary(sce$subsets_Mito_percent == 0) # Assessing how many cells have zero mito gene expression
+
+# Writing no cells with high mito to csv
+colData(sce) %>%
+  as.data.frame() %>%
+  filter(sn_high_Mito_percent == TRUE) %>%
+  group_by(sample) %>%
+  summarise(cells=n()) %T>%
+  readr::write_excel_csv("results/highmito_per_sample.csv", col_names=T)
+
+# Comparing sn nuclear adjustrment to isOutlier mito detection
+table(sce$sn_high_Mito_percent)
+table(sce$high_Mito_percent)
+
+# sce <- addPerCellQC(bibs_dropped, subsets=list(Mt=grep("^MT-", rownames(bibs_dropped))))
+# summary(sce$subsets_Mt_percent)
+# cell_qc_results <- quickPerCellQC(colData(sce), percent_subsets=c("subsets_Mt_percent"))
+# colSums(as.data.frame(cell_qc_results))
+# sce$high_subsets_Mt_percent <- isOutlier(sce$subsets_Mt_percent, type="higher", min.diff=0.5)
+# cell_qc_results$discard <- Reduce("|", cell_qc_results[,colnames(cell_qc_results)!="discard"])
+# colSums(as.matrix(cell_qc_results))
+
+# plotColData(sce, y="subsets_Mt_percent",
+#     colour_by=I(cell_qc_results$high_subsets_Mt_percent))
+
+
+# MAD thresholds that were chosen for low lib size and features
+
+# low_lib_size <- isOutlier(sce$sum, log=TRUE, type="lower")
+# table(low_lib_size)
+attr(sce$low_lib_size, "thresholds")[1]
+# colData(sce)$low_lib_size <- low_lib_size
+
+# low_n_features <- isOutlier(sce$detected, log=TRUE, type="lower")
+# table(low_n_features)
+attr(sce$low_n_features, "thresholds")[1]
+# colData(sce)$low_n_features <- low_n_features
+
+# QC plots per sample 
+gridExtra::grid.arrange(
+  plotColData(sce, 
+              x="sample", 
+              y="sum",
+              colour_by = "low_lib_size") + 
+    scale_y_log10() + 
+    labs(y = "Total count", title = "Total count") +
+    guides(colour=guide_legend(title="Discarded")),
+  
+  plotColData(sce, 
+              x="sample", 
+              y="detected",
+              colour_by = "low_n_features") + 
+    scale_y_log10() + 
+    labs(y = "Genes detected", title = "Genes detected") +
+    guides(colour=guide_legend(title="Discarded")),
+  
+  plotColData(sce, 
+              x="sum", 
+              y="subsets_Mito_percent", 
+              colour_by="high_Mito_percent"),
+  ncol=1
+)
+
+# sn_high_Mito_percent <- isOutlier(sce$subsets_Mito_percent, type="higher", min.diff=0.5) # adjustment for snuclear
+# # discard <- Reduce("|", sce[,colnames(sce)!="discard"])
+# # colSums(as.matrix(sce))
+# # high_Mito_percent <- isOutlier(sce$subsets_Mito_percent, type="higher")
+# table(sn_high_Mito_percent)
+attr(sce$high_Mito_percent, "thresholds")[2]
+attr(sce$sn_high_Mito_percent, "thresholds")[2]
+# colData(sce)$sn_high_Mito_percent <- sn_high_Mito_percent
+summary(sce$high_Mito_percent)
+summary(sce$sn_high_Mito_percent)
+
+gridExtra::grid.arrange(
+plotColData(sce,  
+            x="sample",
+            y="subsets_Mito_percent",
+            colour_by = "sn_high_Mito_percent") + 
+  labs(y = "Percentage mitochondrial UMIs",
+       title = "Mitochondrial UMIs") +
+  guides(colour=guide_legend(title="Discarded")),
+
+plotColData(sce, 
+            x="sum", 
+            y="subsets_Mito_percent", 
+            colour_by="sn_high_Mito_percent"),
+ncol=2
+)
+
+mito_thresh <- 4.5
+
+gridExtra::grid.arrange(
+  # Histogram subsets mito percent
+  colData(sce) %>% 
+    as.data.frame() %>% 
+    ggplot(aes(x=subsets_Mito_percent)) + 
+    geom_density(alpha=0.2, fill="#00BFC4", colour="#00BFC4") +
+    scale_x_log10() + 
+    geom_vline(xintercept = 0.2) +
+    geom_vline(xintercept=mito_thresh, color="#F8766D", linetype="dashed"),
+  
+  # Visualize the distribution of mitochondrial gene expression detected per cell
+  colData(sce) %>% 
+    as.data.frame() %>% 
+    ggplot(aes(color=sample, x=subsets_Mito_percent, fill=sample)) + 
+    geom_density(alpha = 0.2) + 
+    scale_x_log10() + 
+    theme_classic() +
+    geom_vline(xintercept = 0.2) +
+    geom_vline(xintercept = mito_thresh, color="#F8766D", linetype="dashed"),
+    
+  ncol=2 
+)
+
+gridExtra::grid.arrange(
+  # Complexity plot
+  colData(sce) %>% 
+    as.data.frame() %>%
+    ggplot(aes(x=sum, y=detected, color=subsets_Mito_percent)) + 
+    geom_point() + 
+    scale_colour_gradient(low = "gray90", high = "black") +
+    stat_smooth(method=lm) +
+    scale_x_log10() + 
+    scale_y_log10() + 
+    theme_classic() +
+    geom_vline(xintercept = 500) +
+    geom_hline(yintercept = 250) ,
+  # facet_wrap(~sample)
+
+  plotColData(sce, x="sum", y="detected", colour_by="adjusted_discard"),
+  ncol=2
+)
+
+# adjusting mito threshold
+sce$adjusted_mito_threshold <- 
+  data.frame(hmp = sce$subsets_Mito_percent >= mito_thresh) %>%
+  pull(hmp)
+
+sce$adjusted_discard <- 
+  data.frame(lls = sce$low_lib_size,
+             lnf = sce$low_n_features,
+             hmp = sce$adjusted_mito_threshold) %>%
+  mutate(adjusted_discard = case_when(
+    if_any(everything(), ~. == TRUE) ~ TRUE, 
+    .default=FALSE)) %>%
+  pull(adjusted_discard)
+
+# Checking effect of changed threshold
+table(discard=sce$discard, adjusted_discard=sce$adjusted_discard)
+## in this case simply reduced the nbumber of discarded to 41
+
+# colData(sce)$sn_high_Mito_percent <- sn_high_Mito_percent
+gridExtra::grid.arrange(
+  plotColData(sce,  
+              x="sample",
+              y="subsets_Mito_percent",
+              colour_by = "adjusted_discard") + 
+    labs(y = "Percentage mitochondrial UMIs",
+        title = "Mitochondrial UMIs") +
+    guides(colour=guide_legend(title="Discarded")),
+
+  plotColData(sce, 
+              x="sum", 
+              y="subsets_Mito_percent", 
+              colour_by="adjusted_discard"),
+  ncol=2
+)
+
+summary(sce$high_Mito_percent)
+summary(sce$sn_high_Mito_percent)
+summary(sce$adjusted_mito_threshold)
+
+# Final removed for mito
+colData(sce) %>%
+as.data.frame() %>%
+filter(adjusted_mito_threshold == TRUE) %>%
+group_by(sample) %>%
+summarise(cells=n()) %T>%
+readr::write_excel_csv("results/adjustedmito_per_sample.csv", col_names=T)
+
+saveRDS(sce, "data/post_mit_thresh.rds")
+
+# sce.filtered <- sce[, !sce$discard]
+sce.filtered <- sce[, !sce$adjusted_discard]
+colData(sce.filtered) <- colData(sce.filtered)[,c(1:8)]
+sce.filtered <- addPerCellQC(sce.filtered)
+colnames(colData(sce.filtered))
+
+dim(sce)
+dim(sce.filtered)
+# saveRDS(sce.filtered, "data/sce_filtered.rds")
+sce.filtered <- readRDS("data/sce_filtered.rds")
+
+# the cell sparsity: for each cell, the proportion of genes that are not detected
+# the gene sparsity: for each gene, the proportion of cells in which it is not detected
+
+# # Sparsity - perhaps a bit harsh
+# sce_sparse <- addPerFeatureQC(sce.filtered)
+# rowData(sce_sparse)
+
+# colData(sce_sparse)$cell_sparsity <- 1 - (colData(sce_sparse)$detected / nrow(sce_sparse))
+# rowData(sce_sparse)$gene_sparsity <- (100 - rowData(sce_sparse)$detected) / 100
+
+# hist(sce_sparse$cell_sparsity, breaks=50, col="grey80", xlab="Cell sparsity", main="")
+# hist(rowData(sce_sparse)$gene_sparsity, breaks=50, col="grey80", xlab="Gene sparsity", main="")
+
+# sce_sparse$sparse_cells <- sce_sparse$cell_sparsity > 0.99
+# table(sce_sparse$sparse_cells)
+
+# min_cells <- 1 - (10 / ncol(sce_sparse))
+# rowData(sce_sparse)$sparse_genes <- rowData(sce_sparse)$gene_sparsity > min_cells
+# table(rowData(sce_sparse)$sparse_genes)
+
+# sce_final <- sce_sparse[, !sce_sparse$sparse_cells]
+# dim(sce_final)
+# sce_final <- sce_final[!rowData(sce_final)$sparse_genes, ]
+# dim(sce_final)
+
+saveRDS(sce_final, "post_sceqc_object.rds")
+
+# Post-qc seurat ----------------------------------------------------------
+
+table(Matrix::rowSums(counts(sce.filtered) >= 1) >=3)
+keep <- Matrix::rowSums(counts(sce.filtered) >= 1) >=3
+final_sce <- sce.filtered[keep,]
+chosen_sce <- final_sce
+
+preqc <- CreateSeuratObject(counts=counts(chosen_sce),  # change this threshold is too high 
+                            meta.data=as.data.frame(colData(chosen_sce)),
+                            min.cells = 3, 
+                            min.features  = 200, 
+                            project = "whole_muscle_myob", 
+                            assay = "RNA")
+
+# Making sure rownames of seurat match most recent sce
+a <- rownames(chosen_sce)
+b <- rownames(preqc)
+old <- setdiff(a, b)
+new <- setdiff(b, a)
+
+table(old %in% rownames(chosen_sce))
+table(old %in% rownames(preqc))
+for (i in seq_along(old)) {
+  rownames(chosen_sce) <- gsub(old[i], new[i], rownames(chosen_sce))
+}
+table(new %in% rownames(chosen_sce))
+table(new %in% rownames(preqc))
+
+preqc[["percent.mt"]] <- PercentageFeatureSet(preqc, pattern = "^MT-")
+preqc[["percent.rb"]] <- PercentageFeatureSet(preqc, pattern = "^RP[SL]")
+VlnPlot(preqc, features = c("nFeature_RNA","nCount_RNA","percent.mt","percent.rb"),ncol = 4,pt.size = 0.1) & 
+  theme(plot.title = element_text(size=10))
+plot_1 <- FeatureScatter(preqc, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot_2 <- FeatureScatter(preqc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_3 <- FeatureScatter(preqc, feature1 = "nCount_RNA", feature2 = "percent.rb")
+plot_4 <- FeatureScatter(preqc, feature1 = "percent.rb", feature2 = "percent.mt")
+
+plot_1 + plot_2
+plot_3 + plot_4
+
+postqc <- subset(preqc, 
+                subset = nFeature_RNA > 200 & 
+                nFeature_RNA < 2350 & 
+                percent.mt < 5 &
+                percent.rb < 3)
+VlnPlot(postqc, features = c("nFeature_RNA","nCount_RNA","percent.mt","percent.rb"),ncol = 4,pt.size = 0.1) & 
+  theme(plot.title = element_text(size=10))
+
+# Processing --------------------------------------------------------------
+
+# plan(strategy = "multicore", workers = 30)
+
+seur_norm <- NormalizeData(postqc)
+seur_norm <- FindVariableFeatures(seur_norm, selection.method = "vst")
+seur_norm <- ScaleData(seur_norm, features = rownames(seur_norm))
+s.genes <- cc.genes$s.genes
+g2m.genes <- cc.genes$g2m.genes
+seur_norm <- CellCycleScoring(
+  seur_norm,
+  s.features = s.genes,
+  g2m.features = g2m.genes,
+  set.ident = TRUE
+)
+seur_norm$CC.Difference <- seur_norm$S.Score - seur_norm$G2M.Score
+seur_scaled <- 
+  SCTransform(seur_norm, 
+            vst.flavor = "v2",
+            vars.to.regress = c("percent.mt", 
+                                "nFeature_RNA", 
+                                "CC.Difference")) %>%
+  RunPCA(npcs = 50, verbose = FALSE) %>%
+  RunUMAP(reduction = "pca", dims = 1:50, verbose = FALSE) %>%
+  FindNeighbors(reduction = "pca", dims = 1:50, verbose = FALSE) %>% 
+  FindClusters(verbose = TRUE, resolution=seq(0, 1.2, 0.1))
+
+cell_plots <- function(dataset, reduction, grouping){
+  DimPlot(dataset, reduction = reduction, group.by = grouping, label = T)
+}
+
+plots_umap <- list()
+  for(i in paste0("SCT_snn_res.", seq(0, 1.2, 0.1))){
+    plots_umap[[i]] <- cell_plots(seur_scaled, reduction = "umap", i)
+}
+# plots_tsne <- list()
+#   for(i in paste0("SCT_snn_res.", seq(0, 1.2, 0.1))){
+#     plots_tsne[[i]] <- cell_plots(post_sct, reduction = "tsne", i)
+# }
+
+png("clustree_diagram.png", width = 1000, height = 1000)
+  clustree(seur_scaled, prefix = "SCT_snn_res.") +  # chose 0.6
+    theme(legend.position = "bottom")
+  # clustree(master, prefix = "RNA_snn_res.", node_colour = "sc3_stability")
+dev.off()
+
+plots_umap[["SCT_snn_res.0"  ]] 
+plots_umap[["SCT_snn_res.0.1"]] 
+plots_umap[["SCT_snn_res.0.2"]] 
+plots_umap[["SCT_snn_res.0.3"]]
+plots_umap[["SCT_snn_res.0.4"]] 
+plots_umap[["SCT_snn_res.0.5"]] 
+plots_umap[["SCT_snn_res.0.6"]] 
+plots_umap[["SCT_snn_res.0.7"]]
+plots_umap[["SCT_snn_res.0.8"]] 
+plots_umap[["SCT_snn_res.0.9"]] 
+plots_umap[["SCT_snn_res.1"  ]] 
+plots_umap[["SCT_snn_res.1.1"]]
+plots_umap[["SCT_snn_res.1.2"]]
+
+Idents(object = seur_scaled) <- "SCT_snn_res.0.6"
+
+png("cluster_diagram.png", width = 500, height = 500)
+DimPlot(seur_scaled, reduction = "umap", label=TRUE)
+dev.off()
+
+saveRDS(seur_scaled, "data/seur_scaled.rds")
+seur_scaled <- readRDS("data/seur_scaled.rds")
+
+# Marker genes --------------------------------------------------------------
+# Makes a big feature plot with all the heatmap 
+
+# You need to be able to state the gene symbol exactly - list them here
+genes_of_interest <- c(
+  "TTN",
+  "PAX7",
+  "ADIPOQ",
+  "MP2",
+  "PCAM1",
+  "MYHL1",
+  "MYH1",
+  "DCN",
+  "PTPRC",
+  "MKX", 
+  "TNNT1",
+  "ANKRD1",
+  "MYOZ2",
+  "LAMA2",
+  "FBXO32"
+)
+
+# The function below wil return those with an exact match (i.e. one gene withg that name)
+affle <- 
+  map(genes_of_interest, ~{
+    rownames(seur_scaled)[grep(paste0("^", .x), rownames(seur_scaled), ignore.case=T)]
+  }) %>%  
+  keep(~ length(.) == 1) %>% 
+  list_c()
+
+setdiff(genes_of_interest, affle)
+
+# The rest of the genes you will have to search for in the dataset with the below line, 
+# pick the gene and put in the [previously] unknowns 
+rownames(seur_scaled)[grep(paste0("^", "chrne"), rownames(seur_scaled), ignore.case=T)]
+
+unknowns <- c(
+  "TTN",
+  "ADIPOR1",
+  "ADIPOR2",
+  "MYH11",
+  "MYH1"
+)
+
+# This will put all the gene names together saved in a dot images folder
+final <- c(unknowns, affle)
+
+# This will make individual heatmaps for each one
+ork <-
+  final %>%
+  imap( ~ FeaturePlot(seur_scaled, features = .x, pt.size = 0.35))
+ork <- setNames(ork, final)
+dir.create("dot_images")
+ork %>%
+  imap(~{
+    namies <- .y
+    print(namies)
+    ggsave(filename = paste0("dot_images/", namies, ".png"), 
+           plot = .x,
+           width = 7,
+           height = 6,
+           units = "in")
+  })
+
+# This will make violin plots for each one saved in a vln images folder
+ork_vln <-
+  final %>%
+  imap( ~ VlnPlot(seur_scaled, features = .x))
+ork_vln <- setNames(ork_vln, final)
+dir.create("vln_images")
+ork_vln %>%
+  imap(~{
+    namies <- .y
+    print(namies)
+    ggsave(filename = paste0("vln_images/", namies, ".png"), 
+           plot = .x,
+           width = 7,
+           height = 6,
+           units = "in")
+  })
+
+all_markers <- FindAllMarkers(seur_scaled, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+all_markers %>%
+    group_by(cluster) %>%
+    slice_max(n = 20, order_by = avg_log2FC) %>%
+    print(n=Inf)
+
+write_csv(all_markers, "results/wholemuscle_sn_allmarkers.csv")
+saveRDS(all_markers, "data/wholemuscle_sn_allmarkers.rds")
+
+all_markers %>%
+  filter(cluster == 2) %>%
+  select(gene) %>%
+  write_tsv("boops.tsv")
+
+saveRDS(seur_scaled, "data/23-04-20-wm_sn_master_seurat.rds")
+
+
+```

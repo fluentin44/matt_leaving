@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.2.335">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Matt work summary - ATACseq</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1.6em;
+  vertical-align: middle;
+}
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { color: #008000; } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { color: #008000; font-weight: bold; } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="dark">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 20,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="nav-sidebar floating">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+    <div class="container-fluid d-flex justify-content-between">
+      <h1 class="quarto-secondary-nav-title">ATACseq</h1>
+      <button type="button" class="quarto-btn-toggle btn" aria-label="Show secondary navigation">
+        <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse sidebar-navigation floating overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="./">Matt work summary</a> 
+    </div>
+      </div>
+      <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+      </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">Home</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./single_cell.html" class="sidebar-item-text sidebar-link">Single Cell</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./single_nuclear.html" class="sidebar-item-text sidebar-link">Single nuclear</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pseudotime.html" class="sidebar-item-text sidebar-link">Pseudotime</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./atac_seq.html" class="sidebar-item-text sidebar-link active">ATACseq</a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#summary" id="toc-summary" class="nav-link active" data-scroll-target="#summary">Summary</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">Setup</a></li>
+  <li><a href="#demultiplexing" id="toc-demultiplexing" class="nav-link" data-scroll-target="#demultiplexing">Demultiplexing</a></li>
+  <li><a href="#processing-script" id="toc-processing-script" class="nav-link" data-scroll-target="#processing-script">Processing script</a>
+  <ul class="collapse">
+  <li><a href="#for-one-sample" id="toc-for-one-sample" class="nav-link" data-scroll-target="#for-one-sample">For one sample</a></li>
+  <li><a href="#for-multiple-samples" id="toc-for-multiple-samples" class="nav-link" data-scroll-target="#for-multiple-samples">For multiple samples</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title d-none d-lg-block">ATACseq</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<section id="summary" class="level1">
+<h1>Summary</h1>
+<p>This aimed to develop the start of an ATACseq pipeline. This was developed from a number of websites …. This pipeline currently:</p>
+<ol type="1">
+<li>Demultiplexes (optional)</li>
+<li>Accepts two fastq files (paired)</li>
+<li>Conducts fastqc on each file, multiqc (aggregated files)</li>
+<li>Trims reads</li>
+<li>Conducts fastqc on each file, multiqc (aggregated files) - needs to be checked for an estimation as to whether adapter sequences have been removed.</li>
+<li>Aligns to GRCh37 genome</li>
+<li>Converts sam to bam</li>
+<li>Aims to:
+<ul>
+<li><p>Remove MTs</p></li>
+<li><p>Deduplicate</p></li>
+<li><p>Remove non-uniques</p></li>
+</ul></li>
+</ol>
+</section>
+<section id="setup" class="level1">
+<h1>Setup</h1>
+<ul>
+<li><p>The ATAC seq project folder is <code>/scratch/moh1u21/ATAC_seq_test</code></p></li>
+<li><p>The work was conducted in an apptainer environment, atacseq_1.0.sif in the uppermost level of the project folder. The apptainer environment can be started with:</p></li>
+</ul>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode numberSource bash number-lines code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1"></a><span class="ex">module</span> load apptainer</span>
+<span id="cb1-2"><a href="#cb1-2"></a><span class="ex">apptainer</span> shell atacseq_1.0.sif</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="demultiplexing" class="level1">
+<h1>Demultiplexing</h1>
+<p>Sequencing data can be supplied as FASTQ files, or the raw bcl files which can be demultiplexed to gnerate FASTQ files locally. An example script is below:<br>
+</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode numberSource bash number-lines code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1"></a><span class="co">#!/bin/bash</span></span>
+<span id="cb2-2"><a href="#cb2-2"></a></span>
+<span id="cb2-3"><a href="#cb2-3"></a><span class="co">####################################</span></span>
+<span id="cb2-4"><a href="#cb2-4"></a><span class="co">#  Iridis 5 slurm script template  </span></span>
+<span id="cb2-5"><a href="#cb2-5"></a><span class="co">#                                  </span></span>
+<span id="cb2-6"><a href="#cb2-6"></a><span class="co">#  Submit script: sbatch filename  </span></span>
+<span id="cb2-7"><a href="#cb2-7"></a><span class="co">#                                  </span></span>
+<span id="cb2-8"><a href="#cb2-8"></a><span class="co">####################################</span></span>
+<span id="cb2-9"><a href="#cb2-9"></a><span class="co">#SBATCH --job-name=demux                    # Name</span></span>
+<span id="cb2-10"><a href="#cb2-10"></a><span class="co">#SBATCH --ntasks=64                         # Number of processor cores (i.e. tasks)</span></span>
+<span id="cb2-11"><a href="#cb2-11"></a><span class="co">#SBATCH --nodes=1                           # Number of nodes requested</span></span>
+<span id="cb2-12"><a href="#cb2-12"></a><span class="co">#SBATCH --ntasks-per-node=64                # Tasks per node</span></span>
+<span id="cb2-13"><a href="#cb2-13"></a><span class="co">#SBATCH --cpus-per-task=1                   # Threads per task</span></span>
+<span id="cb2-14"><a href="#cb2-14"></a><span class="co">#SBATCH --time=01:00:00                     # walltime</span></span>
+<span id="cb2-15"><a href="#cb2-15"></a><span class="co">#SBATCH --output=output_files/slurm-%j.out</span></span>
+<span id="cb2-16"><a href="#cb2-16"></a><span class="co">#SBATCH --error=error_files/slurm-%j.err</span></span>
+<span id="cb2-17"><a href="#cb2-17"></a><span class="co">#SBATCH --mail-type=ALL                     # mail alert at start, end and abortion of execution</span></span>
+<span id="cb2-18"><a href="#cb2-18"></a><span class="co">#SBATCH --mail-user=moh1u21@soton.ac.uk     # send mail to this address</span></span>
+<span id="cb2-19"><a href="#cb2-19"></a></span>
+<span id="cb2-20"><a href="#cb2-20"></a><span class="bu">cd</span> /scratch/moh1u21/ATAC_seq_test/</span>
+<span id="cb2-21"><a href="#cb2-21"></a></span>
+<span id="cb2-22"><a href="#cb2-22"></a><span class="ex">module</span> load bcl2fastq</span>
+<span id="cb2-23"><a href="#cb2-23"></a></span>
+<span id="cb2-24"><a href="#cb2-24"></a><span class="ex">bcl2fastq</span> <span class="at">-r</span> 20 <span class="at">-p</span> 20 <span class="at">-w</span> 20 <span class="dt">\</span></span>
+<span id="cb2-25"><a href="#cb2-25"></a>--runfolder-dir 230209_NB501007_0340_AHFFGFAFX5 <span class="dt">\</span></span>
+<span id="cb2-26"><a href="#cb2-26"></a>--input-dir 230209_NB501007_0340_AHFFGFAFX5/Data/Intensities/BaseCalls <span class="dt">\</span></span>
+<span id="cb2-27"><a href="#cb2-27"></a>--output-dir ./demultiplexed_reads <span class="dt">\</span></span>
+<span id="cb2-28"><a href="#cb2-28"></a>--sample-sheet Seq_Sample_Sheet_ATAC-seq_100223.csv <span class="dt">\</span></span>
+<span id="cb2-29"><a href="#cb2-29"></a>--minimum-trimmed-read-length 20 <span class="dt">\</span></span>
+<span id="cb2-30"><a href="#cb2-30"></a>--mask-short-adapter-reads 20 <span class="dt">\</span></span>
+<span id="cb2-31"><a href="#cb2-31"></a>--ignore-missing-bcls <span class="dt">\</span></span>
+<span id="cb2-32"><a href="#cb2-32"></a>--no-lane-splitting </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>To note:</p>
+<ul>
+<li><p>bcl2fastq is already installed on iridis so no conda, apptainer environment is needed.</p></li>
+<li><p>Flags are largely self-explanatory but canb be explored on the command line with <code>bcl2fastq -h</code> .</p></li>
+<li><p>The code from above is located in /scratch/moh1u21/ATAC_seq_test/src/demultiplex_alt.sh - Submitting this file to slurm will produce error and output files in the src folder.</p></li>
+</ul>
+</section>
+<section id="processing-script" class="level1">
+<h1>Processing script</h1>
+<p>Note - this code is UNFINISHED - need to remove MTs, deduplicate, remove non-uniques.</p>
+<p>The below file is at <code>/scratch/moh1u21/ATAC_seq_test/src/test_processing_script.sh</code>.</p>
+<section id="for-one-sample" class="level2">
+<h2 class="anchored" data-anchor-id="for-one-sample">For one sample</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1"></a>cd <span class="sc">/</span>scratch<span class="sc">/</span>moh1u21<span class="sc">/</span>ATAC_seq_test</span>
+<span id="cb3-2"><a href="#cb3-2"></a></span>
+<span id="cb3-3"><a href="#cb3-3"></a>echo <span class="sc">$</span>PATH <span class="sc">|</span> sed <span class="st">'s/:/</span><span class="sc">\n</span><span class="st">/g'</span> <span class="sc">|</span> sort <span class="sc">|</span> uniq <span class="sc">-</span>c</span>
+<span id="cb3-4"><a href="#cb3-4"></a>today<span class="ot">=</span><span class="er">$</span>(date <span class="sc">+</span><span class="st">"%Y-%m-%d"</span>)</span>
+<span id="cb3-5"><a href="#cb3-5"></a></span>
+<span id="cb3-6"><a href="#cb3-6"></a>project_folder<span class="ot">=</span><span class="er">/</span>scratch<span class="sc">/</span>moh1u21<span class="sc">/</span>ATAC_seq_test</span>
+<span id="cb3-7"><a href="#cb3-7"></a><span class="co"># genomedir=/Users/fluentin44/Documents/22-05-15-index_genome/genome_index_hg19 </span></span>
+<span id="cb3-8"><a href="#cb3-8"></a>genomedir<span class="ot">=</span><span class="er">/</span>scratch<span class="sc">/</span>moh1u21<span class="sc">/</span>ATAC_seq_test<span class="sc">/</span>GRCh37</span>
+<span id="cb3-9"><a href="#cb3-9"></a></span>
+<span id="cb3-10"><a href="#cb3-10"></a>mkdir <span class="sc">-</span>p results_test<span class="sc">/</span>reports<span class="sc">/</span>fastp</span>
+<span id="cb3-11"><a href="#cb3-11"></a>mkdir <span class="sc">-</span>p results_test<span class="sc">/</span>reports<span class="sc">/</span>fastqc</span>
+<span id="cb3-12"><a href="#cb3-12"></a>mkdir <span class="sc">-</span>p results_test<span class="sc">/</span>reports<span class="sc">/</span>multiqc</span>
+<span id="cb3-13"><a href="#cb3-13"></a>mkdir <span class="sc">-</span>p results_test<span class="sc">/</span>logs</span>
+<span id="cb3-14"><a href="#cb3-14"></a>mkdir <span class="sc">-</span>p data_test<span class="sc">/</span>trimmed</span>
+<span id="cb3-15"><a href="#cb3-15"></a></span>
+<span id="cb3-16"><a href="#cb3-16"></a>fastp_logfile<span class="ot">=</span>results_test<span class="sc">/</span>logs<span class="sc">/</span>test_fastp_log.txt</span>
+<span id="cb3-17"><a href="#cb3-17"></a></span>
+<span id="cb3-18"><a href="#cb3-18"></a><span class="co"># 1. QC - Fastq</span></span>
+<span id="cb3-19"><a href="#cb3-19"></a></span>
+<span id="cb3-20"><a href="#cb3-20"></a>fastqc data_test<span class="sc">/</span>test_files<span class="sc">/</span><span class="er">*</span>.fastq.gz \</span>
+<span id="cb3-21"><a href="#cb3-21"></a><span class="sc">-</span>o results_test<span class="sc">/</span>reports<span class="sc">/</span>fastqc \</span>
+<span id="cb3-22"><a href="#cb3-22"></a><span class="sc">-</span>t <span class="dv">60</span> </span>
+<span id="cb3-23"><a href="#cb3-23"></a></span>
+<span id="cb3-24"><a href="#cb3-24"></a>multiqc results_test<span class="sc">/</span>reports<span class="sc">/</span>fastqc \</span>
+<span id="cb3-25"><a href="#cb3-25"></a><span class="sc">-</span>o results_test<span class="sc">/</span>reports<span class="sc">/</span>multiqc<span class="sc">/</span> \</span>
+<span id="cb3-26"><a href="#cb3-26"></a><span class="sc">-</span>n test_multiqc_pre_trim</span>
+<span id="cb3-27"><a href="#cb3-27"></a></span>
+<span id="cb3-28"><a href="#cb3-28"></a><span class="co"># 2. Adapter removal and deduplication</span></span>
+<span id="cb3-29"><a href="#cb3-29"></a><span class="do">## 2.1a - For multiple files</span></span>
+<span id="cb3-30"><a href="#cb3-30"></a></span>
+<span id="cb3-31"><a href="#cb3-31"></a><span class="co"># find /scratch/moh1u21/ATAC_seq_test/data_test/test_files -maxdepth 1 -type f | cut -d"_" -f10-12 | sort | uniq &gt; fast_files.txt</span></span>
+<span id="cb3-32"><a href="#cb3-32"></a></span>
+<span id="cb3-33"><a href="#cb3-33"></a><span class="co"># cat fast_files.txt | parallel --dry-run \</span></span>
+<span id="cb3-34"><a href="#cb3-34"></a>fastp \</span>
+<span id="cb3-35"><a href="#cb3-35"></a><span class="sc">-</span>w <span class="dv">16</span> \</span>
+<span id="cb3-36"><a href="#cb3-36"></a><span class="sc">-</span>p \</span>
+<span id="cb3-37"><a href="#cb3-37"></a><span class="sc">--</span>length_required <span class="dv">50</span> \</span>
+<span id="cb3-38"><a href="#cb3-38"></a><span class="sc">-</span>i data_test<span class="sc">/</span>test_files<span class="sc">/</span>SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_1.fastq.gz \</span>
+<span id="cb3-39"><a href="#cb3-39"></a><span class="sc">-</span>I data_test<span class="sc">/</span>test_files<span class="sc">/</span>SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_2.fastq.gz \</span>
+<span id="cb3-40"><a href="#cb3-40"></a><span class="sc">-</span>o data_test<span class="sc">/</span>trimmed<span class="sc">/</span>trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_1.fastq.gz \</span>
+<span id="cb3-41"><a href="#cb3-41"></a><span class="sc">-</span>O data_test<span class="sc">/</span>trimmed<span class="sc">/</span>trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_2.fastq.gz \</span>
+<span id="cb3-42"><a href="#cb3-42"></a><span class="sc">--</span>correction \</span>
+<span id="cb3-43"><a href="#cb3-43"></a><span class="sc">--</span>trim_poly_g \</span>
+<span id="cb3-44"><a href="#cb3-44"></a><span class="sc">--</span>trim_poly_x \</span>
+<span id="cb3-45"><a href="#cb3-45"></a><span class="sc">--</span>cut_tail \</span>
+<span id="cb3-46"><a href="#cb3-46"></a><span class="sc">--</span>cut_mean_quality <span class="dv">30</span> \</span>
+<span id="cb3-47"><a href="#cb3-47"></a><span class="sc">--</span>html results_test<span class="sc">/</span>reports<span class="sc">/</span>fastp<span class="sc">/</span>trimmed_fastp_report.html \</span>
+<span id="cb3-48"><a href="#cb3-48"></a><span class="sc">--</span>json results_test<span class="sc">/</span>reports<span class="sc">/</span>fastp<span class="sc">/</span>trimmed_fastp_report.json <span class="sc">&gt;</span> <span class="er">$</span>fastp_logfile <span class="dv">2</span><span class="sc">&gt;</span><span class="er">&amp;</span><span class="dv">1</span></span>
+<span id="cb3-49"><a href="#cb3-49"></a></span>
+<span id="cb3-50"><a href="#cb3-50"></a><span class="co"># QC </span></span>
+<span id="cb3-51"><a href="#cb3-51"></a></span>
+<span id="cb3-52"><a href="#cb3-52"></a>fastqc data_test<span class="sc">/</span>test_files<span class="sc">/</span>trimmed<span class="sc">/</span><span class="er">*</span>.fastq.gz \</span>
+<span id="cb3-53"><a href="#cb3-53"></a><span class="sc">-</span>o results_test<span class="sc">/</span>reports<span class="sc">/</span>fastqc<span class="sc">/</span> \</span>
+<span id="cb3-54"><a href="#cb3-54"></a><span class="sc">-</span>t <span class="dv">60</span> </span>
+<span id="cb3-55"><a href="#cb3-55"></a><span class="co"># --contaminants data/adapters.txt</span></span>
+<span id="cb3-56"><a href="#cb3-56"></a></span>
+<span id="cb3-57"><a href="#cb3-57"></a>multiqc results_test<span class="sc">/</span>reports<span class="sc">/</span>fastqc<span class="sc">/</span> \</span>
+<span id="cb3-58"><a href="#cb3-58"></a><span class="sc">-</span>o results_test<span class="sc">/</span>reports<span class="sc">/</span>multiqc<span class="sc">/</span> \</span>
+<span id="cb3-59"><a href="#cb3-59"></a><span class="sc">-</span>n multiqc_post_trim</span>
+<span id="cb3-60"><a href="#cb3-60"></a></span>
+<span id="cb3-61"><a href="#cb3-61"></a><span class="co"># 3. Align </span></span>
+<span id="cb3-62"><a href="#cb3-62"></a><span class="do">## 3.1. Load genome - we are using a prebuilt so doesnt need to be done </span></span>
+<span id="cb3-63"><a href="#cb3-63"></a><span class="co"># bowtie2-build  &lt;genome.fa&gt;  &lt;genomeIndexName&gt;</span></span>
+<span id="cb3-64"><a href="#cb3-64"></a></span>
+<span id="cb3-65"><a href="#cb3-65"></a><span class="co"># # ls data/test_files | cut -d"_" -f1-2 | sort | uniq &gt; filenames.txt</span></span>
+<span id="cb3-66"><a href="#cb3-66"></a><span class="co"># cat fast_files.txt | parallel \</span></span>
+<span id="cb3-67"><a href="#cb3-67"></a><span class="co">#     fastp \</span></span>
+<span id="cb3-68"><a href="#cb3-68"></a><span class="co">#     -i {}_1.fastq -o {}_1.trimmed.fq \</span></span>
+<span id="cb3-69"><a href="#cb3-69"></a><span class="co">#     -I {}_2.fastq -O {}_2.trimmed.fq \</span></span>
+<span id="cb3-70"><a href="#cb3-70"></a><span class="co">#     --max_len1 20 \</span></span>
+<span id="cb3-71"><a href="#cb3-71"></a><span class="co">#     --max_len2 20</span></span>
+<span id="cb3-72"><a href="#cb3-72"></a></span>
+<span id="cb3-73"><a href="#cb3-73"></a><span class="do">## 3.2. Align</span></span>
+<span id="cb3-74"><a href="#cb3-74"></a></span>
+<span id="cb3-75"><a href="#cb3-75"></a><span class="co"># cat fast_files.txt | parallel \</span></span>
+<span id="cb3-76"><a href="#cb3-76"></a>bowtie2 <span class="sc">--</span>very<span class="sc">-</span>sensitive \</span>
+<span id="cb3-77"><a href="#cb3-77"></a> <span class="sc">-</span>q \</span>
+<span id="cb3-78"><a href="#cb3-78"></a> <span class="sc">-</span>x <span class="sc">/</span>scratch<span class="sc">/</span>moh1u21<span class="sc">/</span>ATAC_seq_test<span class="sc">/</span>GRCh37<span class="sc">/</span>GRCh37 \</span>
+<span id="cb3-79"><a href="#cb3-79"></a> <span class="sc">-</span><span class="dv">1</span> data_test<span class="sc">/</span>trimmed<span class="sc">/</span>trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_1.fastq.gz \</span>
+<span id="cb3-80"><a href="#cb3-80"></a> <span class="sc">-</span><span class="dv">2</span> data_test<span class="sc">/</span>trimmed<span class="sc">/</span>trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_2.fastq.gz \</span>
+<span id="cb3-81"><a href="#cb3-81"></a> <span class="sc">-</span>S test_aligned.sam <span class="dv">2</span><span class="sc">&gt;</span><span class="er">&gt;</span> bt2log_test_aligned.log</span>
+<span id="cb3-82"><a href="#cb3-82"></a> </span>
+<span id="cb3-83"><a href="#cb3-83"></a><span class="co">#  | samtools view -@ 60 -Shu - \</span></span>
+<span id="cb3-84"><a href="#cb3-84"></a><span class="co">#  | samtools sort - -O {}_aligned.bam '&gt;&gt;' bw2_alignment.txt '2&gt;&amp;1'</span></span>
+<span id="cb3-85"><a href="#cb3-85"></a></span>
+<span id="cb3-86"><a href="#cb3-86"></a><span class="co"># cat fast_files.txt | parallel \</span></span>
+<span id="cb3-87"><a href="#cb3-87"></a>samtools view <span class="sc">-</span>h <span class="sc">-</span>S <span class="sc">-</span>b test_aligned.sam <span class="sc">-</span>o test_aligned.bam </span>
+<span id="cb3-88"><a href="#cb3-88"></a></span>
+<span id="cb3-89"><a href="#cb3-89"></a><span class="co"># # 4. Remove MTs</span></span>
+<span id="cb3-90"><a href="#cb3-90"></a><span class="co"># samtools view -h  &lt;inBAM&gt;  |  removeChrom - - chrM  |  samtools view -b -  &gt;  &lt;outBAM&gt;</span></span>
+<span id="cb3-91"><a href="#cb3-91"></a></span>
+<span id="cb3-92"><a href="#cb3-92"></a><span class="co"># # 5. Deduplicate </span></span>
+<span id="cb3-93"><a href="#cb3-93"></a><span class="co"># java -jar $PICARD_TOOLS_HOME/picard.jar MarkDuplicates I=&lt;inBAM&gt; O=&lt;outBAM&gt; M=dups.txt REMOVE_DUPLICATES=true</span></span>
+<span id="cb3-94"><a href="#cb3-94"></a></span>
+<span id="cb3-95"><a href="#cb3-95"></a><span class="co"># # 6. Remove non-uniques</span></span>
+<span id="cb3-96"><a href="#cb3-96"></a><span class="co"># samtools view -b  -q 10  &lt;inBAM&gt;  &gt;  &lt;outBAM&gt;</span></span>
+<span id="cb3-97"><a href="#cb3-97"></a></span>
+<span id="cb3-98"><a href="#cb3-98"></a><span class="co"># # 7. Peak calling</span></span>
+<span id="cb3-99"><a href="#cb3-99"></a><span class="co"># module load ATAC-seq</span></span>
+<span id="cb3-100"><a href="#cb3-100"></a><span class="co"># samtools view -h  &lt;BAM&gt;  |  SAMtoBED  -i -  -o &lt;BED&gt;  -x  -v</span></span>
+<span id="cb3-101"><a href="#cb3-101"></a><span class="co"># macs2 callpeak  -t &lt;BED&gt;  -f BEDPE  -n NAME  -g ce  --keep-dup all</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="for-multiple-samples" class="level2">
+<h2 class="anchored" data-anchor-id="for-multiple-samples">For multiple samples</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1"></a>cd <span class="sc">/</span>scratch<span class="sc">/</span>moh1u21<span class="sc">/</span>ATAC_seq_test</span>
+<span id="cb4-2"><a href="#cb4-2"></a></span>
+<span id="cb4-3"><a href="#cb4-3"></a>echo <span class="sc">$</span>PATH <span class="sc">|</span> sed <span class="st">'s/:/</span><span class="sc">\n</span><span class="st">/g'</span> <span class="sc">|</span> sort <span class="sc">|</span> uniq <span class="sc">-</span>c</span>
+<span id="cb4-4"><a href="#cb4-4"></a>today<span class="ot">=</span><span class="er">$</span>(date <span class="sc">+</span><span class="st">"%Y-%m-%d"</span>)</span>
+<span id="cb4-5"><a href="#cb4-5"></a></span>
+<span id="cb4-6"><a href="#cb4-6"></a>project_folder<span class="ot">=</span><span class="er">/</span>scratch<span class="sc">/</span>moh1u21<span class="sc">/</span>ATAC_seq_test</span>
+<span id="cb4-7"><a href="#cb4-7"></a><span class="co"># genomedir=/Users/fluentin44/Documents/22-05-15-index_genome/genome_index_hg19 </span></span>
+<span id="cb4-8"><a href="#cb4-8"></a>genomedir<span class="ot">=</span><span class="er">/</span>scratch<span class="sc">/</span>moh1u21<span class="sc">/</span>ATAC_seq_test<span class="sc">/</span>GRCh37</span>
+<span id="cb4-9"><a href="#cb4-9"></a></span>
+<span id="cb4-10"><a href="#cb4-10"></a>mkdir <span class="sc">-</span>p results_test<span class="sc">/</span>reports<span class="sc">/</span>fastp</span>
+<span id="cb4-11"><a href="#cb4-11"></a>mkdir <span class="sc">-</span>p results_test<span class="sc">/</span>reports<span class="sc">/</span>fastqc</span>
+<span id="cb4-12"><a href="#cb4-12"></a>mkdir <span class="sc">-</span>p results_test<span class="sc">/</span>reports<span class="sc">/</span>multiqc</span>
+<span id="cb4-13"><a href="#cb4-13"></a>mkdir <span class="sc">-</span>p results_test<span class="sc">/</span>logs</span>
+<span id="cb4-14"><a href="#cb4-14"></a>mkdir <span class="sc">-</span>p data_test<span class="sc">/</span>trimmed</span>
+<span id="cb4-15"><a href="#cb4-15"></a></span>
+<span id="cb4-16"><a href="#cb4-16"></a>fastp_logfile<span class="ot">=</span>results_test<span class="sc">/</span>logs<span class="sc">/</span>test_fastp_log.txt</span>
+<span id="cb4-17"><a href="#cb4-17"></a></span>
+<span id="cb4-18"><a href="#cb4-18"></a><span class="co"># 1. QC - Fastq</span></span>
+<span id="cb4-19"><a href="#cb4-19"></a></span>
+<span id="cb4-20"><a href="#cb4-20"></a>fastqc data_test<span class="sc">/</span>test_files<span class="sc">/</span><span class="er">*</span>.fastq.gz \</span>
+<span id="cb4-21"><a href="#cb4-21"></a><span class="sc">-</span>o results_test<span class="sc">/</span>reports<span class="sc">/</span>fastqc \</span>
+<span id="cb4-22"><a href="#cb4-22"></a><span class="sc">-</span>t <span class="dv">60</span> </span>
+<span id="cb4-23"><a href="#cb4-23"></a></span>
+<span id="cb4-24"><a href="#cb4-24"></a>multiqc results_test<span class="sc">/</span>reports<span class="sc">/</span>fastqc \</span>
+<span id="cb4-25"><a href="#cb4-25"></a><span class="sc">-</span>o results_test<span class="sc">/</span>reports<span class="sc">/</span>multiqc<span class="sc">/</span> \</span>
+<span id="cb4-26"><a href="#cb4-26"></a><span class="sc">-</span>n test_multiqc_pre_trim</span>
+<span id="cb4-27"><a href="#cb4-27"></a></span>
+<span id="cb4-28"><a href="#cb4-28"></a><span class="co"># 2. Adapter removal and deduplication</span></span>
+<span id="cb4-29"><a href="#cb4-29"></a><span class="do">## 2.1a - For multiple files</span></span>
+<span id="cb4-30"><a href="#cb4-30"></a></span>
+<span id="cb4-31"><a href="#cb4-31"></a><span class="co"># find /scratch/moh1u21/ATAC_seq_test/data_test/test_files -maxdepth 1 -type f | cut -d"_" -f10-12 | sort | uniq &gt; fast_files.txt</span></span>
+<span id="cb4-32"><a href="#cb4-32"></a></span>
+<span id="cb4-33"><a href="#cb4-33"></a><span class="co"># cat fast_files.txt | parallel --dry-run \</span></span>
+<span id="cb4-34"><a href="#cb4-34"></a>fastp \</span>
+<span id="cb4-35"><a href="#cb4-35"></a><span class="sc">-</span>w <span class="dv">16</span> \</span>
+<span id="cb4-36"><a href="#cb4-36"></a><span class="sc">-</span>p \</span>
+<span id="cb4-37"><a href="#cb4-37"></a><span class="sc">--</span>length_required <span class="dv">50</span> \</span>
+<span id="cb4-38"><a href="#cb4-38"></a><span class="sc">-</span>i data_test<span class="sc">/</span>test_files<span class="sc">/</span>SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_1.fastq.gz \</span>
+<span id="cb4-39"><a href="#cb4-39"></a><span class="sc">-</span>I data_test<span class="sc">/</span>test_files<span class="sc">/</span>SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_2.fastq.gz \</span>
+<span id="cb4-40"><a href="#cb4-40"></a><span class="sc">-</span>o data_test<span class="sc">/</span>trimmed<span class="sc">/</span>trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_1.fastq.gz \</span>
+<span id="cb4-41"><a href="#cb4-41"></a><span class="sc">-</span>O data_test<span class="sc">/</span>trimmed<span class="sc">/</span>trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_2.fastq.gz \</span>
+<span id="cb4-42"><a href="#cb4-42"></a><span class="sc">--</span>correction \</span>
+<span id="cb4-43"><a href="#cb4-43"></a><span class="sc">--</span>trim_poly_g \</span>
+<span id="cb4-44"><a href="#cb4-44"></a><span class="sc">--</span>trim_poly_x \</span>
+<span id="cb4-45"><a href="#cb4-45"></a><span class="sc">--</span>cut_tail \</span>
+<span id="cb4-46"><a href="#cb4-46"></a><span class="sc">--</span>cut_mean_quality <span class="dv">30</span> \</span>
+<span id="cb4-47"><a href="#cb4-47"></a><span class="sc">--</span>html results_test<span class="sc">/</span>reports<span class="sc">/</span>fastp<span class="sc">/</span>trimmed_fastp_report.html \</span>
+<span id="cb4-48"><a href="#cb4-48"></a><span class="sc">--</span>json results_test<span class="sc">/</span>reports<span class="sc">/</span>fastp<span class="sc">/</span>trimmed_fastp_report.json <span class="sc">&gt;</span> <span class="er">$</span>fastp_logfile <span class="dv">2</span><span class="sc">&gt;</span><span class="er">&amp;</span><span class="dv">1</span></span>
+<span id="cb4-49"><a href="#cb4-49"></a></span>
+<span id="cb4-50"><a href="#cb4-50"></a><span class="co"># QC </span></span>
+<span id="cb4-51"><a href="#cb4-51"></a></span>
+<span id="cb4-52"><a href="#cb4-52"></a>fastqc data_test<span class="sc">/</span>test_files<span class="sc">/</span>trimmed<span class="sc">/</span><span class="er">*</span>.fastq.gz \</span>
+<span id="cb4-53"><a href="#cb4-53"></a><span class="sc">-</span>o results_test<span class="sc">/</span>reports<span class="sc">/</span>fastqc<span class="sc">/</span> \</span>
+<span id="cb4-54"><a href="#cb4-54"></a><span class="sc">-</span>t <span class="dv">60</span> </span>
+<span id="cb4-55"><a href="#cb4-55"></a><span class="co"># --contaminants data/adapters.txt</span></span>
+<span id="cb4-56"><a href="#cb4-56"></a></span>
+<span id="cb4-57"><a href="#cb4-57"></a>multiqc results_test<span class="sc">/</span>reports<span class="sc">/</span>fastqc<span class="sc">/</span> \</span>
+<span id="cb4-58"><a href="#cb4-58"></a><span class="sc">-</span>o results_test<span class="sc">/</span>reports<span class="sc">/</span>multiqc<span class="sc">/</span> \</span>
+<span id="cb4-59"><a href="#cb4-59"></a><span class="sc">-</span>n multiqc_post_trim</span>
+<span id="cb4-60"><a href="#cb4-60"></a></span>
+<span id="cb4-61"><a href="#cb4-61"></a><span class="co"># 3. Align </span></span>
+<span id="cb4-62"><a href="#cb4-62"></a><span class="do">## 3.1. Load genome - we are using a prebuilt so doesnt need to be done </span></span>
+<span id="cb4-63"><a href="#cb4-63"></a><span class="co"># bowtie2-build  &lt;genome.fa&gt;  &lt;genomeIndexName&gt;</span></span>
+<span id="cb4-64"><a href="#cb4-64"></a></span>
+<span id="cb4-65"><a href="#cb4-65"></a><span class="co"># # ls data/test_files | cut -d"_" -f1-2 | sort | uniq &gt; filenames.txt</span></span>
+<span id="cb4-66"><a href="#cb4-66"></a><span class="co"># cat fast_files.txt | parallel \</span></span>
+<span id="cb4-67"><a href="#cb4-67"></a><span class="co">#     fastp \</span></span>
+<span id="cb4-68"><a href="#cb4-68"></a><span class="co">#     -i {}_1.fastq -o {}_1.trimmed.fq \</span></span>
+<span id="cb4-69"><a href="#cb4-69"></a><span class="co">#     -I {}_2.fastq -O {}_2.trimmed.fq \</span></span>
+<span id="cb4-70"><a href="#cb4-70"></a><span class="co">#     --max_len1 20 \</span></span>
+<span id="cb4-71"><a href="#cb4-71"></a><span class="co">#     --max_len2 20</span></span>
+<span id="cb4-72"><a href="#cb4-72"></a></span>
+<span id="cb4-73"><a href="#cb4-73"></a><span class="do">## 3.2. Align</span></span>
+<span id="cb4-74"><a href="#cb4-74"></a></span>
+<span id="cb4-75"><a href="#cb4-75"></a><span class="co"># cat fast_files.txt | parallel \</span></span>
+<span id="cb4-76"><a href="#cb4-76"></a>bowtie2 <span class="sc">--</span>very<span class="sc">-</span>sensitive \</span>
+<span id="cb4-77"><a href="#cb4-77"></a> <span class="sc">-</span>q \</span>
+<span id="cb4-78"><a href="#cb4-78"></a> <span class="sc">-</span>x <span class="sc">/</span>scratch<span class="sc">/</span>moh1u21<span class="sc">/</span>ATAC_seq_test<span class="sc">/</span>GRCh37<span class="sc">/</span>GRCh37 \</span>
+<span id="cb4-79"><a href="#cb4-79"></a> <span class="sc">-</span><span class="dv">1</span> data_test<span class="sc">/</span>trimmed<span class="sc">/</span>trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_1.fastq.gz \</span>
+<span id="cb4-80"><a href="#cb4-80"></a> <span class="sc">-</span><span class="dv">2</span> data_test<span class="sc">/</span>trimmed<span class="sc">/</span>trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC<span class="sc">-</span>seq_2.fastq.gz \</span>
+<span id="cb4-81"><a href="#cb4-81"></a> <span class="sc">-</span>S test_aligned.sam <span class="dv">2</span><span class="sc">&gt;</span><span class="er">&gt;</span> bt2log_test_aligned.log</span>
+<span id="cb4-82"><a href="#cb4-82"></a> </span>
+<span id="cb4-83"><a href="#cb4-83"></a><span class="co">#  | samtools view -@ 60 -Shu - \</span></span>
+<span id="cb4-84"><a href="#cb4-84"></a><span class="co">#  | samtools sort - -O {}_aligned.bam '&gt;&gt;' bw2_alignment.txt '2&gt;&amp;1'</span></span>
+<span id="cb4-85"><a href="#cb4-85"></a></span>
+<span id="cb4-86"><a href="#cb4-86"></a><span class="co"># cat fast_files.txt | parallel \</span></span>
+<span id="cb4-87"><a href="#cb4-87"></a>samtools view <span class="sc">-</span>h <span class="sc">-</span>S <span class="sc">-</span>b test_aligned.sam <span class="sc">-</span>o test_aligned.bam </span>
+<span id="cb4-88"><a href="#cb4-88"></a></span>
+<span id="cb4-89"><a href="#cb4-89"></a><span class="co"># # 4. Remove MTs</span></span>
+<span id="cb4-90"><a href="#cb4-90"></a><span class="co"># samtools view -h  &lt;inBAM&gt;  |  removeChrom - - chrM  |  samtools view -b -  &gt;  &lt;outBAM&gt;</span></span>
+<span id="cb4-91"><a href="#cb4-91"></a></span>
+<span id="cb4-92"><a href="#cb4-92"></a><span class="co"># # 5. Deduplicate </span></span>
+<span id="cb4-93"><a href="#cb4-93"></a><span class="co"># java -jar $PICARD_TOOLS_HOME/picard.jar MarkDuplicates I=&lt;inBAM&gt; O=&lt;outBAM&gt; M=dups.txt REMOVE_DUPLICATES=true</span></span>
+<span id="cb4-94"><a href="#cb4-94"></a></span>
+<span id="cb4-95"><a href="#cb4-95"></a><span class="co"># # 6. Remove non-uniques</span></span>
+<span id="cb4-96"><a href="#cb4-96"></a><span class="co"># samtools view -b  -q 10  &lt;inBAM&gt;  &gt;  &lt;outBAM&gt;</span></span>
+<span id="cb4-97"><a href="#cb4-97"></a></span>
+<span id="cb4-98"><a href="#cb4-98"></a><span class="co"># # 7. Peak calling</span></span>
+<span id="cb4-99"><a href="#cb4-99"></a><span class="co"># module load ATAC-seq</span></span>
+<span id="cb4-100"><a href="#cb4-100"></a><span class="co"># samtools view -h  &lt;BAM&gt;  |  SAMtoBED  -i -  -o &lt;BED&gt;  -x  -v</span></span>
+<span id="cb4-101"><a href="#cb4-101"></a><span class="co"># macs2 callpeak  -t &lt;BED&gt;  -f BEDPE  -n NAME  -g ce  --keep-dup all</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    target: function(trigger) {
+      return trigger.previousElementSibling;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>

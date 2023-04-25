@@ -2,19 +2,49 @@ project:
   type: website
   output-dir: docs
 
+execute: 
+  eval: FALSE
+  
 website:
-  title: "Matt work summary"
-  navbar:
-    left:
+  sidebar:
+    background: "dark"
+    style: "floating"
+    search: true
+    contents:
       - href: index.qmd
         text: Home
-      - about.qmd
+      - single_cell.qmd
+      - single_nuclear.qmd
+      - pseudotime.qmd
+      - atac_seq.qmd
+      - conda_envs.qmd
+      # - section: "Layout"
+      #   # contents:
+      #   #   - layout.qmd
+      #   #   - layout-knitr.qmd
+      #   #   - layout-jupyter.qmd
+  title: "Matt work summary"
+  # navbar:
+  #   left:
+  #     - href: index.qmd
+  #       text: Home
+  #     - single_cell.qmd
+  #     - single_nuclear.qmd
+  #     - pseudotime.qmd
+  #     - atac_seq.qmd
 
 format:
   html:
-    theme: cosmo
+    highlight-style: github
+    code-copy: hover
+    code-line-numbers: true
+    code-block-bg: true
+    # code-block-border-left: "#31BAE9"
+    code-block-border-left: true
+    theme: solar
     css: styles.css
     toc: true
+    monobackgroundcolor: "light"
 
 editor: visual
 

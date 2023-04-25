@@ -1,11 +1,15 @@
 ---
-title: "matt_work_summary"
+title: "Bioinformatics handoff"
 ---
 
-This is a Quarto website.
+This is a summary of my work, covering as far as possible details on:
 
-To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
+-   Single cell
 
-```{r}
-1 + 1
-```
+-   Single nuclear
+
+-   RNAseq
+
+-   Pseudobulk
+
+-   ATACseq

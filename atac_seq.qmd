@@ -1,0 +1,298 @@
+---
+title: "ATACseq"
+---
+
+# Summary
+
+This aimed to develop the start of an ATACseq pipeline. This was developed from a number of websites .... This pipeline currently:
+
+1.  Demultiplexes (optional)
+2.  Accepts two fastq files (paired)
+3.  Conducts fastqc on each file, multiqc (aggregated files)
+4.  Trims reads
+5.  Conducts fastqc on each file, multiqc (aggregated files) - needs to be checked for an estimation as to whether adapter sequences have been removed.
+6.  Aligns to GRCh37 genome
+7.  Converts sam to bam
+8.  Aims to:
+    -   Remove MTs
+
+    -   Deduplicate
+
+    -   Remove non-uniques
+
+# Setup
+
+-   The ATAC seq project folder is `/scratch/moh1u21/ATAC_seq_test`
+
+-   The work was conducted in an apptainer environment, atacseq_1.0.sif in the uppermost level of the project folder. The apptainer environment can be started with:
+
+```{bash}
+module load apptainer
+apptainer shell atacseq_1.0.sif
+```
+
+# Demultiplexing
+
+Sequencing data can be supplied as FASTQ files, or the raw bcl files which can be demultiplexed to gnerate FASTQ files locally. An example script is below:\
+
+```{bash}
+#!/bin/bash
+
+####################################
+#  Iridis 5 slurm script template  
+#                                  
+#  Submit script: sbatch filename  
+#                                  
+####################################
+#SBATCH --job-name=demux                    # Name
+#SBATCH --ntasks=64                         # Number of processor cores (i.e. tasks)
+#SBATCH --nodes=1                           # Number of nodes requested
+#SBATCH --ntasks-per-node=64                # Tasks per node
+#SBATCH --cpus-per-task=1                   # Threads per task
+#SBATCH --time=01:00:00                     # walltime
+#SBATCH --output=output_files/slurm-%j.out
+#SBATCH --error=error_files/slurm-%j.err
+#SBATCH --mail-type=ALL                     # mail alert at start, end and abortion of execution
+#SBATCH --mail-user=moh1u21@soton.ac.uk     # send mail to this address
+
+cd /scratch/moh1u21/ATAC_seq_test/
+
+module load bcl2fastq
+
+bcl2fastq -r 20 -p 20 -w 20 \
+--runfolder-dir 230209_NB501007_0340_AHFFGFAFX5 \
+--input-dir 230209_NB501007_0340_AHFFGFAFX5/Data/Intensities/BaseCalls \
+--output-dir ./demultiplexed_reads \
+--sample-sheet Seq_Sample_Sheet_ATAC-seq_100223.csv \
+--minimum-trimmed-read-length 20 \
+--mask-short-adapter-reads 20 \
+--ignore-missing-bcls \
+--no-lane-splitting 
+```
+
+To note:
+
+-   bcl2fastq is already installed on iridis so no conda, apptainer environment is needed.
+
+-   Flags are largely self-explanatory but canb be explored on the command line with `bcl2fastq -h` .
+
+-   The code from above is located in /scratch/moh1u21/ATAC_seq_test/src/demultiplex_alt.sh - Submitting this file to slurm will produce error and output files in the src folder.
+
+# Processing script
+
+Note - this code is UNFINISHED  - need to remove MTs, deduplicate, remove non-uniques.
+
+The below file is at `/scratch/moh1u21/ATAC_seq_test/src/test_processing_script.sh`.
+
+## For one sample
+
+```{r}
+cd /scratch/moh1u21/ATAC_seq_test
+
+echo $PATH | sed 's/:/\n/g' | sort | uniq -c
+today=$(date +"%Y-%m-%d")
+
+project_folder=/scratch/moh1u21/ATAC_seq_test
+# genomedir=/Users/fluentin44/Documents/22-05-15-index_genome/genome_index_hg19 
+genomedir=/scratch/moh1u21/ATAC_seq_test/GRCh37
+
+mkdir -p results_test/reports/fastp
+mkdir -p results_test/reports/fastqc
+mkdir -p results_test/reports/multiqc
+mkdir -p results_test/logs
+mkdir -p data_test/trimmed
+
+fastp_logfile=results_test/logs/test_fastp_log.txt
+
+# 1. QC - Fastq
+
+fastqc data_test/test_files/*.fastq.gz \
+-o results_test/reports/fastqc \
+-t 60 
+
+multiqc results_test/reports/fastqc \
+-o results_test/reports/multiqc/ \
+-n test_multiqc_pre_trim
+
+# 2. Adapter removal and deduplication
+## 2.1a - For multiple files
+
+# find /scratch/moh1u21/ATAC_seq_test/data_test/test_files -maxdepth 1 -type f | cut -d"_" -f10-12 | sort | uniq > fast_files.txt
+
+# cat fast_files.txt | parallel --dry-run \
+fastp \
+-w 16 \
+-p \
+--length_required 50 \
+-i data_test/test_files/SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_1.fastq.gz \
+-I data_test/test_files/SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_2.fastq.gz \
+-o data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_1.fastq.gz \
+-O data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_2.fastq.gz \
+--correction \
+--trim_poly_g \
+--trim_poly_x \
+--cut_tail \
+--cut_mean_quality 30 \
+--html results_test/reports/fastp/trimmed_fastp_report.html \
+--json results_test/reports/fastp/trimmed_fastp_report.json > $fastp_logfile 2>&1
+
+# QC 
+
+fastqc data_test/test_files/trimmed/*.fastq.gz \
+-o results_test/reports/fastqc/ \
+-t 60 
+# --contaminants data/adapters.txt
+
+multiqc results_test/reports/fastqc/ \
+-o results_test/reports/multiqc/ \
+-n multiqc_post_trim
+
+# 3. Align 
+## 3.1. Load genome - we are using a prebuilt so doesnt need to be done 
+# bowtie2-build  <genome.fa>  <genomeIndexName>
+
+# # ls data/test_files | cut -d"_" -f1-2 | sort | uniq > filenames.txt
+# cat fast_files.txt | parallel \
+#     fastp \
+#     -i {}_1.fastq -o {}_1.trimmed.fq \
+#     -I {}_2.fastq -O {}_2.trimmed.fq \
+#     --max_len1 20 \
+#     --max_len2 20
+
+## 3.2. Align
+
+# cat fast_files.txt | parallel \
+bowtie2 --very-sensitive \
+ -q \
+ -x /scratch/moh1u21/ATAC_seq_test/GRCh37/GRCh37 \
+ -1 data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_1.fastq.gz \
+ -2 data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_2.fastq.gz \
+ -S test_aligned.sam 2>> bt2log_test_aligned.log
+ 
+#  | samtools view -@ 60 -Shu - \
+#  | samtools sort - -O {}_aligned.bam '>>' bw2_alignment.txt '2>&1'
+
+# cat fast_files.txt | parallel \
+samtools view -h -S -b test_aligned.sam -o test_aligned.bam 
+
+# # 4. Remove MTs
+# samtools view -h  <inBAM>  |  removeChrom - - chrM  |  samtools view -b -  >  <outBAM>
+
+# # 5. Deduplicate 
+# java -jar $PICARD_TOOLS_HOME/picard.jar MarkDuplicates I=<inBAM> O=<outBAM> M=dups.txt REMOVE_DUPLICATES=true
+
+# # 6. Remove non-uniques
+# samtools view -b  -q 10  <inBAM>  >  <outBAM>
+
+# # 7. Peak calling
+# module load ATAC-seq
+# samtools view -h  <BAM>  |  SAMtoBED  -i -  -o <BED>  -x  -v
+# macs2 callpeak  -t <BED>  -f BEDPE  -n NAME  -g ce  --keep-dup all
+```
+
+## For multiple samples
+
+```{r}
+cd /scratch/moh1u21/ATAC_seq_test
+
+echo $PATH | sed 's/:/\n/g' | sort | uniq -c
+today=$(date +"%Y-%m-%d")
+
+project_folder=/scratch/moh1u21/ATAC_seq_test
+# genomedir=/Users/fluentin44/Documents/22-05-15-index_genome/genome_index_hg19 
+genomedir=/scratch/moh1u21/ATAC_seq_test/GRCh37
+
+mkdir -p results_test/reports/fastp
+mkdir -p results_test/reports/fastqc
+mkdir -p results_test/reports/multiqc
+mkdir -p results_test/logs
+mkdir -p data_test/trimmed
+
+fastp_logfile=results_test/logs/test_fastp_log.txt
+
+# 1. QC - Fastq
+
+fastqc data_test/test_files/*.fastq.gz \
+-o results_test/reports/fastqc \
+-t 60 
+
+multiqc results_test/reports/fastqc \
+-o results_test/reports/multiqc/ \
+-n test_multiqc_pre_trim
+
+# 2. Adapter removal and deduplication
+## 2.1a - For multiple files
+
+# find /scratch/moh1u21/ATAC_seq_test/data_test/test_files -maxdepth 1 -type f | cut -d"_" -f10-12 | sort | uniq > fast_files.txt
+
+# cat fast_files.txt | parallel --dry-run \
+fastp \
+-w 16 \
+-p \
+--length_required 50 \
+-i data_test/test_files/SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_1.fastq.gz \
+-I data_test/test_files/SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_2.fastq.gz \
+-o data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_1.fastq.gz \
+-O data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_2.fastq.gz \
+--correction \
+--trim_poly_g \
+--trim_poly_x \
+--cut_tail \
+--cut_mean_quality 30 \
+--html results_test/reports/fastp/trimmed_fastp_report.html \
+--json results_test/reports/fastp/trimmed_fastp_report.json > $fastp_logfile 2>&1
+
+# QC 
+
+fastqc data_test/test_files/trimmed/*.fastq.gz \
+-o results_test/reports/fastqc/ \
+-t 60 
+# --contaminants data/adapters.txt
+
+multiqc results_test/reports/fastqc/ \
+-o results_test/reports/multiqc/ \
+-n multiqc_post_trim
+
+# 3. Align 
+## 3.1. Load genome - we are using a prebuilt so doesnt need to be done 
+# bowtie2-build  <genome.fa>  <genomeIndexName>
+
+# # ls data/test_files | cut -d"_" -f1-2 | sort | uniq > filenames.txt
+# cat fast_files.txt | parallel \
+#     fastp \
+#     -i {}_1.fastq -o {}_1.trimmed.fq \
+#     -I {}_2.fastq -O {}_2.trimmed.fq \
+#     --max_len1 20 \
+#     --max_len2 20
+
+## 3.2. Align
+
+# cat fast_files.txt | parallel \
+bowtie2 --very-sensitive \
+ -q \
+ -x /scratch/moh1u21/ATAC_seq_test/GRCh37/GRCh37 \
+ -1 data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_1.fastq.gz \
+ -2 data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_2.fastq.gz \
+ -S test_aligned.sam 2>> bt2log_test_aligned.log
+ 
+#  | samtools view -@ 60 -Shu - \
+#  | samtools sort - -O {}_aligned.bam '>>' bw2_alignment.txt '2>&1'
+
+# cat fast_files.txt | parallel \
+samtools view -h -S -b test_aligned.sam -o test_aligned.bam 
+
+# # 4. Remove MTs
+# samtools view -h  <inBAM>  |  removeChrom - - chrM  |  samtools view -b -  >  <outBAM>
+
+# # 5. Deduplicate 
+# java -jar $PICARD_TOOLS_HOME/picard.jar MarkDuplicates I=<inBAM> O=<outBAM> M=dups.txt REMOVE_DUPLICATES=true
+
+# # 6. Remove non-uniques
+# samtools view -b  -q 10  <inBAM>  >  <outBAM>
+
+# # 7. Peak calling
+# module load ATAC-seq
+# samtools view -h  <BAM>  |  SAMtoBED  -i -  -o <BED>  -x  -v
+# macs2 callpeak  -t <BED>  -f BEDPE  -n NAME  -g ce  --keep-dup all
+
+```
