@@ -6,14 +6,15 @@ title: "Single nuclear"
 
 -   The project folder is `/scratch/moh1u21/23-01-30-whole_muscle_snrnaseq`
 
--   All work was done in the sc_qc
+-   All work for the 'bash bit' was done in the qc_env conda environment, and the 'R bit' was done in the sc_qc conda environment.
+
+# 'Bash bit'
+
+# 'R bit'
+
+-   This will involve the
 
 ```{r}
----
-title: "Single Cell"
----
-
-{r}
 suppressPackageStartupMessages(library(DropletUtils))
 suppressPackageStartupMessages(library(reticulate))
 suppressPackageStartupMessages(library(singleCellTK))
@@ -31,28 +32,36 @@ suppressPackageStartupMessages(library(clustree))
 suppressPackageStartupMessages(library(scran))
 suppressPackageStartupMessages(library(bluster))
 
-# use_python("/Users/fluentin44/miniconda3/envs/sc_qc/bin/python")
-
-# bp.params <- MulticoreParam(workers = 30)
-
-# BiocManager::install(c("DropletUtils",
-#                        "AnnotationHub",
-#                        "SingleCellExperiment",
-#                        "scater",
-#                        "ensembldb",
-#                        "singleCellTK",
-#                        "BiocParallel"
-#                        ))
-# install.packages(c("BiocManager",
-#                    "reticulate",
-#                    "patchwork",
-#                    "ggvenn",
-#                    "tidyverse"
-#                    ))
-
-bibs <- readRDS("data/bibs.rds")
-
 set.seed(9816)
+
+bp.params <- MulticoreParam(workers = 40)
+
+starsolodirs <- dir("/scratch/moh1u21/23-01-30-whole_muscle_snrnaseq/results/raw/solo_output/results_data", full.names=T)
+
+samples <-
+	c("sample_a_178K400",
+	"sample_b_178K300",
+	"sample_c_178K200",
+	"sample_d_259K400",
+	"sample_e_259K300",
+	"sample_h_12K112")
+
+# saveRDS(data/bibs.rds)
+# bibs <- readRDS("data/bibs.rds")
+
+bibs <- 
+importSTARsolo(
+  starsolodirs,
+  samples,
+  STARsoloOuts = "GeneFull/raw",
+  matrixFileNames = "UniqueAndMult-EM.mtx",
+  featuresFileNames = "features.tsv",
+  barcodesFileNames = "barcodes.tsv",
+  gzipped = "auto",
+  class = c("Matrix", "matrix"),
+  delayedArray = FALSE,
+  rowNamesDedup = TRUE
+)
 
 bibs_qcd <- 
   runBarcodeRankDrops(
@@ -707,3 +716,7 @@ saveRDS(seur_scaled, "data/23-04-20-wm_sn_master_seurat.rds")
 
 
 ```
+
+# Diagrams
+
+## Dot plot heatmap

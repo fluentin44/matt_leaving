@@ -4,7 +4,7 @@ title: "ATACseq"
 
 # Summary
 
-This aimed to develop the start of an ATACseq pipeline. This was developed from a number of websites .... This pipeline currently:
+This aimed to develop the start of an ATACseq pipeline. This pipeline currently:
 
 1.  Demultiplexes (optional)
 2.  Accepts two fastq files (paired)
@@ -76,25 +76,44 @@ To note:
 
 -   Flags are largely self-explanatory but canb be explored on the command line with `bcl2fastq -h` .
 
--   The code from above is located in /scratch/moh1u21/ATAC_seq_test/src/demultiplex_alt.sh - Submitting this file to slurm will produce error and output files in the src folder.
+-   The code from above is located in `/scratch/moh1u21/ATAC_seq_test/src/demultiplex_alt.sh` - Submitting this file to slurm will produce error and output files in the src folder.
 
 # Processing script
 
-Note - this code is UNFINISHED  - need to remove MTs, deduplicate, remove non-uniques.
+-   Note - this code is UNFINISHED  - need to remove MTs, deduplicate, remove non-uniques and merge bams. There are sites which could provide suggestions [here](https://yiweiniu.github.io/blog/2019/03/ATAC-seq-data-analysis-from-FASTQ-to-peaks/) and [here](https://informatics.fas.harvard.edu/atac-seq-guidelines.html) for example. There is also some suggested code already in place.
+
+-   There are multiple pre-built [indexes](https://benlangmead.github.io/aws-indexes/bowtie) available for bowtie2, so dont necessariy need to make your own (but can be done).
+
+-   You can use fastP, a trimmer, as is to seach for what it may think is an adapter automatically, otherwise you will have to specify the adapter sequence yourself with one of the options below:
+
+    ```         
+    -A, --disable_adapter_trimming
+        adapter trimming is enabled by default. If this option is specified, adapter trimming is        disabled
+    -a, --adapter_sequence
+        the adapter for read1. For SE data, if not specified, the adapter will be auto-detected. For     PE data, this is used if R1/R2 are found not overlapped. (string [=auto])
+    --adapter_sequence_r2
+        the adapter for read2 (PE data only). This is used if R1/R2 are found not overlapped. If not     specified, it will be the same as <adapter_sequence> (string [=auto])
+    --adapter_fasta
+        specify a FASTA file to trim both read1 and read2 (if PE) by all the sequences in this FASTA     file (string [=])
+    --detect_adapter_for_pe
+        by default, the auto-detection for adapter is for SE data input only, turn on this option to     enable it for PE data.
+    ```
 
 The below file is at `/scratch/moh1u21/ATAC_seq_test/src/test_processing_script.sh`.
 
-## For one sample
+## For one sample (may be good for testing)
 
 ```{r}
+
+# Set directory
 cd /scratch/moh1u21/ATAC_seq_test
 
 echo $PATH | sed 's/:/\n/g' | sort | uniq -c
 today=$(date +"%Y-%m-%d")
 
+# Set environmental variables and make necessary folders
 project_folder=/scratch/moh1u21/ATAC_seq_test
-# genomedir=/Users/fluentin44/Documents/22-05-15-index_genome/genome_index_hg19 
-genomedir=/scratch/moh1u21/ATAC_seq_test/GRCh37
+genomedir=/scratch/moh1u21/ATAC_seq_test/GRCh37 
 
 mkdir -p results_test/reports/fastp
 mkdir -p results_test/reports/fastqc
@@ -104,8 +123,7 @@ mkdir -p data_test/trimmed
 
 fastp_logfile=results_test/logs/test_fastp_log.txt
 
-# 1. QC - Fastq
-
+# 1. QC - Fastq and multiQC - chance to look at initial quality of reads
 fastqc data_test/test_files/*.fastq.gz \
 -o results_test/reports/fastqc \
 -t 60 
@@ -115,11 +133,7 @@ multiqc results_test/reports/fastqc \
 -n test_multiqc_pre_trim
 
 # 2. Adapter removal and deduplication
-## 2.1a - For multiple files
-
-# find /scratch/moh1u21/ATAC_seq_test/data_test/test_files -maxdepth 1 -type f | cut -d"_" -f10-12 | sort | uniq > fast_files.txt
-
-# cat fast_files.txt | parallel --dry-run \
+## 2.1. FastP will trim your reads - see how well it does on 'automatic mode', but you may have to. supply your adapter sequnces
 fastp \
 -w 16 \
 -p \
@@ -137,7 +151,6 @@ fastp \
 --json results_test/reports/fastp/trimmed_fastp_report.json > $fastp_logfile 2>&1
 
 # QC 
-
 fastqc data_test/test_files/trimmed/*.fastq.gz \
 -o results_test/reports/fastqc/ \
 -t 60 
@@ -202,59 +215,100 @@ project_folder=/scratch/moh1u21/ATAC_seq_test
 # genomedir=/Users/fluentin44/Documents/22-05-15-index_genome/genome_index_hg19 
 genomedir=/scratch/moh1u21/ATAC_seq_test/GRCh37
 
-mkdir -p results_test/reports/fastp
-mkdir -p results_test/reports/fastqc
-mkdir -p results_test/reports/multiqc
-mkdir -p results_test/logs
-mkdir -p data_test/trimmed
+mkdir -p results/reports/fastp
+mkdir -p results/reports/fastqc
+mkdir -p results/reports/multiqc
+mkdir -p results/logs
+mkdir -p data/trimmed
 
-fastp_logfile=results_test/logs/test_fastp_log.txt
+fastp_logfile=results/logs/fastp_log.txt
 
 # 1. QC - Fastq
 
-fastqc data_test/test_files/*.fastq.gz \
--o results_test/reports/fastqc \
+fastqc data/demultiplexed_reads/ATAC_seq_test/*.fastq.gz \
+-o results/reports/fastqc \
 -t 60 
 
 multiqc results_test/reports/fastqc \
--o results_test/reports/multiqc/ \
--n test_multiqc_pre_trim
+-o results/reports/multiqc/ \
+-n multiqc_pre_trim
 
 # 2. Adapter removal and deduplication
-## 2.1a - For multiple files
 
-# find /scratch/moh1u21/ATAC_seq_test/data_test/test_files -maxdepth 1 -type f | cut -d"_" -f10-12 | sort | uniq > fast_files.txt
+# id=$(ls data/test_files)
 
-# cat fast_files.txt | parallel --dry-run \
+# arr=($id)
+# # Get central bit of filename
+# arr_names=()
+# for i in "${arr[@]}"
+# do
+# 	arr_names+=("$(echo $i | cut -d'_' -f 1-2)")
+# done
+# declare -p arr_names
+
+# # Get only the unique filenames
+# newArr=(); 
+# while IFS= read -r -d '' x; 
+# do newArr+=("$x"); 
+# done < <(printf "%s\0" "${arr_names[@]}" | sort -uz)
+# declare -p newArr
+
+# find /scratch/moh1u21/ATAC_seq_test/data/demultiplexed_reads/ATAC_seq_test/ -maxdepth 1 -type f | cut -d"_" -f1-2 | sort | uniq > fast_files.txt
+find /scratch/moh1u21/ATAC_seq_test/data/demultiplexed_reads/ATAC_seq_test/ -maxdepth 1 -type f | awk -F/ '{print $NF}' | cut -d"_" -f1-2 | sort | uniq > fast_files.txt
+
+# cat fast_files.txt | parallel \
+# fastq_info final_fqs/{}_1.fastq.gz final_fqs/trimmed_{}_2.fastq.gz '>>' Results.txt '2>&1'
+
+cat fast_files.txt | parallel \
 fastp \
 -w 16 \
 -p \
 --length_required 50 \
--i data_test/test_files/SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_1.fastq.gz \
--I data_test/test_files/SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_2.fastq.gz \
--o data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_1.fastq.gz \
--O data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_2.fastq.gz \
+-i data/demultiplexed_reads/ATAC_seq_test/{}_R1_001.fastq.gz \
+-I data/demultiplexed_reads/ATAC_seq_test/{}_R2_001.fastq.gz \
+-o data/demultiplexed_reads/trimmed/trimmed_{}_R1_001.fastq.gz \
+-O data/demultiplexed_reads/trimmed/trimmed_{}_R2_001.fastq.gz \
 --correction \
 --trim_poly_g \
 --trim_poly_x \
 --cut_tail \
 --cut_mean_quality 30 \
---html results_test/reports/fastp/trimmed_fastp_report.html \
---json results_test/reports/fastp/trimmed_fastp_report.json > $fastp_logfile 2>&1
+--html results/reports/fastp/{}_trimmed_fastp_report.html \
+--json results/reports/fastp/{}_trimmed_fastp_report.json '>' $fastp_logfile '2>&1'
 
-# QC 
+# for i in ${newArr[@]}
+# do
 
-fastqc data_test/test_files/trimmed/*.fastq.gz \
--o results_test/reports/fastqc/ \
+# fastp \
+# -w 16 \
+# -p \
+# --length_required 50 \
+# -i data/demultiplexed_reads/ATAC_seq_test/${i}_R1_001.fastq.gz \
+# -I data/demultiplexed_reads/ATAC_seq_test/${i}_R2_001.fastq.gz \
+# -o data/demultiplexed_reads/trimmed/trimmed_${i}_R1_001.fastq.gz \
+# -O data/demultiplexed_reads/trimmed/trimmed_${i}_R2_001.fastq.gz \
+# --adapter_fasta data/adapters.fasta \
+# --correction \
+# --trim_poly_g \
+# --trim_poly_x \
+# --cut_tail \
+# --cut_mean_quality 30 \
+# --html results/reports/fastp/trimmed_${i}_fastp_report.html \
+# --json results/reports/fastp/trimmed_${i}_fastp_report.json >> $fastp_logfile 2>&1
+
+# done 
+
+fastqc data/demultiplexed_reads/trimmed/*.fastq.gz \
+-o results/reports/fastqc/ \
 -t 60 
 # --contaminants data/adapters.txt
 
-multiqc results_test/reports/fastqc/ \
--o results_test/reports/multiqc/ \
+multiqc results/reports/fastqc/ \
+-o results/reports/multiqc/ \
 -n multiqc_post_trim
 
 # 3. Align 
-## 3.1. Load genome - we are using a prebuilt so doesnt need to be done 
+## 3.1. Load genome
 # bowtie2-build  <genome.fa>  <genomeIndexName>
 
 # # ls data/test_files | cut -d"_" -f1-2 | sort | uniq > filenames.txt
@@ -267,19 +321,23 @@ multiqc results_test/reports/fastqc/ \
 
 ## 3.2. Align
 
-# cat fast_files.txt | parallel \
+cat fast_files.txt | parallel --dry-run \
 bowtie2 --very-sensitive \
  -q \
  -x /scratch/moh1u21/ATAC_seq_test/GRCh37/GRCh37 \
- -1 data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_1.fastq.gz \
- -2 data_test/trimmed/trimmed_SRR23641128_GSM7070986_ATAC_DMSO_1_Homo_sapiens_ATAC-seq_2.fastq.gz \
- -S test_aligned.sam 2>> bt2log_test_aligned.log
+ -1 data/demultiplexed_reads/trimmed/trimmed_{}_R1_001.fastq.gz \
+ -2 data/demultiplexed_reads/trimmed/trimmed_{}_R2_001.fastq.gz \
+ -S results/{}_test_aligned.sam 2>> {}_bt2log_test_aligned.log
+
  
 #  | samtools view -@ 60 -Shu - \
 #  | samtools sort - -O {}_aligned.bam '>>' bw2_alignment.txt '2>&1'
 
-# cat fast_files.txt | parallel \
-samtools view -h -S -b test_aligned.sam -o test_aligned.bam 
+cat fast_files.txt | parallel \
+samtools view -h -S -b {}_test_aligned.sam -o {}_test_aligned.bam 
+
+# https://yiweiniu.github.io/blog/2019/03/ATAC-seq-data-analysis-from-FASTQ-to-peaks/
+# https://informatics.fas.harvard.edu/atac-seq-guidelines.html
 
 # # 4. Remove MTs
 # samtools view -h  <inBAM>  |  removeChrom - - chrM  |  samtools view -b -  >  <outBAM>

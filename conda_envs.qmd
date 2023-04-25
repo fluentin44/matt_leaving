@@ -10,7 +10,7 @@ title: "Conda environments"
 
 -   NOTE - these environments listed are for linux (Iridis) only - if you wanted to use these elsewhere (mac or pc) you could set the environments up on linux and then use `conda env export —from-history><ENV.yml>`
 
--   NOTE - sc_qc is big and will take a long time.
+-   NOTE - sc_qc is big and will take a long time to set itself up.
 
 ``` yml
 name: qc_env
