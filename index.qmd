@@ -2,12 +2,6 @@
 title: "Bioinformatics handoff"
 ---
 
-This is a summary of my work, covering as far as possible details on:
+This is a summary of my work, covering as far as possible. I have tried to make all the code as reproducible as possible - note there will still be some hashed out code in the scripts - this is 99% most likely because it is not needed, but has been used in the development of the code, so may be useful for reference at some point in time.
 
--   Single cell
-
--   Single nuclear
-
--   Pseudobulk
-
--   ATACseq
+I've tried to provide the locations of project folders, including raw data and any materials which I used to support writing the respective code.

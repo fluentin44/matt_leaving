@@ -284,3 +284,94 @@ title: "Overview"
     ```
 
 # Shiny cell
+
+-   ShinyCell is a visualisation tool for single cell data.
+
+-   GitHub is [here](https://github.com/SGDDNB/ShinyCell) which will detail the installation (not complicated).
+
+::: callout-note
+`ShinyCell` is a R package that allows users to create interactive Shiny-based web applications to visualise single-cell data via (i) visualising cell information and/or gene expression on reduced dimensions e.g. UMAP, (ii) visualising the coexpression of two genes on reduced dimensions, (iii) visualising the distribution of continuous cell information e.g. nUMI / module scores using violin plots / box plots, (iv) visualising the composition of different clusters / groups of cells using proportion plots and (v) visualising the expression of multiple genes using bubbleplots / heatmap. Examples of ShinyCell-generated shiny apps for single and multi datasets can be found at [http://shinycell1.ddnetbio.com](http://shinycell1.ddnetbio.com/) and [http://shinycell2.ddnetbio.com](http://shinycell2.ddnetbio.com/) respectively.
+:::
+
+-   In principal, shinycell is an application that can be run by r (a shiny program).
+
+## Building the shinycell app
+
+-   The app is made by taking the most recent seurat object, and reading it in to the script below.
+
+    ```{r}
+    library(Seurat)
+    library(ShinyCell)
+
+    master <- readRDS("<MOST RECENT SEURAT OBJECT>")
+
+    # getExampleData()                       # Download example dataset (~200 MB)
+    # seu = readRDS("readySeu_rset.rds")
+    scConf = createConfig(master)
+    makeShinyApp(master, scConf, gene.mapping = TRUE,
+                 shiny.title = "ShinyCell Quick Start") 
+
+    make_shiny_cell_object <- function(object){
+      suppressPackageStartupMessages(library(Seurat))
+      suppressPackageStartupMessages(library(ShinyCell))
+      
+      # getExampleData()                       # Download example dataset (~200 MB)
+      # seu = readRDS("readySeu_rset.rds")
+      scConf = createConfig(object)
+      makeShinyApp(object, scConf, gene.mapping = TRUE,
+                   shiny.title = "ShinyCell Quick Start") 
+    }
+
+    showLegend(scConf)
+    scConf <- delMeta(scConf, c(
+      "orig.ident", 
+      "old.ident", 
+      "RNA_snn_res.0.6", 
+      "seurat_clusters"
+    ))
+
+    scConf <- 
+    modMetaName(scConf,
+                meta.to.mod = c("almhsq", 
+                                "xamaxgrip", 
+                                "xwspdms", 
+                                "xwspdms_quart", 
+                                "almhsq_quart", 
+                                "xamaxgrip_quart"),
+                new.name = c("almi", 
+                             "Grip", 
+                             "Gait",
+                             "Gait quartile", 
+                             "almi quartile", 
+                             "Grip quartile"))
+
+
+    # # Modify colours and labels
+    # scConf = modColours(scConf, meta.to.mod = "cell_id_2xsources", 
+    #                     new.colours= c('#ffd92f', #5
+    #                                    '#fc8d62', #2
+    #                                    '#66c2a5', #1
+    #                                    '#8da0cb', #3
+    #                                    '#e78ac3'  #4
+    #                                    ))
+    # 
+    # # Modify colours and labels
+    # scConf = modColours(scConf, meta.to.mod = "cell_id_3xsources", 
+    #                     new.colours= c('#66c2a5', #1
+    #                                    '#fc8d62', #2
+    #                                    '#8da0cb', #3
+    #                                    '#e78ac3', #4
+    #                                    '#ffd92f'  #5
+    #                                    ))
+
+    checkConfig(scConf, master)
+
+    makeShinyApp(master, scConf,
+                 shiny.title = "ShinyCell single-cell",
+                 shiny.dir = "26-04-26-shinyApp/") 
+
+    ```
+
+-   This will produce a folder named according to whatever you have named the shiny.dir. Inside this shiny.dir will be a number of files which include a ui file. Open the ui file and in the toolbar of the script window will be a Run App button. Press the button and the app should start.
+
+-   There is a lot of customisation you can do detailed in the github.

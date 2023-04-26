@@ -8,8 +8,874 @@ Pseudotime conducted on the single cell dataset.
 
 # Setup
 
+-   The analysis was conducted in two sections, one on Iridis to allow the fitting of a general additive model and subsequent differential methylation analysis which is highly computationally intensive. The iridis project folder and below script is `/scratch/moh1u21/22-10-28-pseudotime/src/pseudotime_01_counts.R` .
+
+-   The other half of the analysis is at `/Users/fluentin44/Library/CloudStorage/OneDrive-UniversityofSouthampton/23-01-09-pseudotime`  - this folder also contains all the objects used for the analysis.
+
+-   The 'raw data' for the analysis is the single cell seurat object.
+
+-   I used both the [OCSA book](http://bioconductor.org/books/3.16/OSCA.advanced/trajectory-analysis.html) and the [tradeseq vignette](https://statomics.github.io/tradeSeq/articles/tradeSeq.html) as guidance.
+
 # Processing script
 
-# Diagrams
+## Pseudotime and fitting a GAM (to allow differential expression analysis)
 
-## Lineage gene expression heatmaps
+```{r}
+suppressMessages(library(ggplot2))
+suppressMessages(library(dplyr))
+suppressMessages(library(Seurat))
+suppressMessages(library(scater))
+#suppressMessages(library(monocle3))
+# suppressMessages(library(DropletUtils))
+# suppressMessages(library(stringr))
+# suppressMessages(library(celda))
+# suppressMessages(library(slalom))
+# suppressMessages(library(data.table))
+suppressMessages(library(TSCAN))
+suppressMessages(library(slingshot))
+suppressMessages(library(tradeSeq))
+suppressMessages(library(RColorBrewer))
+suppressMessages(library(BiocParallel))
+suppressMessages(library(scry))
+
+BPPARAM <- BiocParallel::MulticoreParam(workers=30) 
+BPPARAM
+
+master <- readRDS("data/22-10-24-master_updated.rds")
+DefaultAssay(master) <- "RNA"
+
+counts <- GetAssayData(object = master, slot = "counts", assay="RNA")
+
+# Filter based on expression 
+nrow(counts)
+keep <- rowSums(counts) >= 1
+table(keep)
+counts <- counts[keep,]
+nrow(counts)
+
+U <- model.matrix(~0 +
+                   Encapulation +
+                  #  Culture_days + 
+                   Sex + 
+                   CC.Difference + 
+                   nFeature_RNA +
+                   nCount_RNA +
+                   percent.mt, 
+                   data = as.data.frame(master[[]]))
+
+counts <- counts[, colnames(counts) %in% rownames(U)]
+
+all(colnames(counts) %in% rownames(U))
+
+boop <- rownames(U)
+nerts <- subset(master, cells = boop)
+
+# use 1500 most variable genes for the analysis
+var_genes <- VariableFeatures(nerts)
+var_genes <- var_genes[var_genes %in% rownames(counts)]
+var_genes <- var_genes[1:1500]
+
+# var_gene_counts <- GetAssayData(nerts)[var_genes,]
+# nrow(counts)
+# keep <- rowSums(counts) > 1 # rows of the DESeqDataSet that have no counts, or only a single count across all samples
+# counts <- counts[keep,]
+# nrow(counts)
+
+merp <- as.SingleCellExperiment(nerts)
+colLabels(merp) <- colData(merp)$cluster_id
+
+# The below is used to try and determine the 'root' node - i.e. the most undifferentiated. This can be done by looking at transcriptional entropy (disorder), the idea being that the mature cells will have a transcriptiome of low entropy as their transcriptional expression will be 'focused', tailored towards a specific function, whereas immature cells will have a high transcriptional entropy as their function/activity is not as well defined yet. 
+entropy <- perCellEntropy(merp)
+ent.data <- data.frame(cluster=colLabels(merp), entropy=entropy)
+ggplot(ent.data, aes(x=cluster, y=entropy)) + 
+  geom_violin() +
+  coord_cartesian(ylim=c(7, NA)) +
+  stat_summary(fun=median, geom="point")
+
+# load("./data/SCTransformed_PCadjusted_clustered_data4.RData")
+
+# data4_sce <- as.SingleCellExperiment(data4)
+
+# Save the objects as separate matrices for input in slingshot
+reducedDims(merp) <- SimpleList(PCA = nerts@reductions$pca@cell.embeddings, 
+                                UMAP = nerts@reductions$umap@cell.embeddings)
+
+# pseudo.all <- quickPseudotime(merp, use.dimred="UMAP")
+# head(pseudo.all$ordering)
+# mnn.pseudo <- averagePseudotime(pseudo.all$ordering)
+# plotUMAP(merp, colour_by=I(mnn.pseudo), text_by="label", text_colour="red") +
+#   geom_line(data=pseudo.all$connected$UMAP, mapping=aes(x=UMAP_1, y=UMAP_2, group=edge))
+
+# data4_sce <- as.SingleCellExperiment(data4)
+# reducedDims(data4_sce) <- SimpleList(PCA = data4@reductions$pca@cell.embeddings, UMAP = data4@reductions$umap@cell.embeddings)
+pto <- slingshot(data=merp, 
+                 clusterLabels = "cluster_id", 
+                 reducedDim="UMAP", 
+                 start.clus=6#,
+                 # omega=T
+                 )
+sds <- as.SlingshotDataSet(pto)
+# Cairo::CairoX11()
+# plot.new()
+colors <- c("firebrick2", "deepskyblue", "coral", "springgreen4", "yellow1", "limegreen", "blue1", "turquoise1", "darkorange", "darkmagenta", "deeppink1", "brown4", "green3")
+plot(reducedDims(pto)$UMAP, col = colors[pto$cluster_id], pch=16, asp = 1, cex=0.5)
+lines(SlingshotDataSet(pto), lwd=2, type = 'lineages', col = 'black')
+
+# plot(reducedDims(pto)$UMAP, col = colors[pto$cluster_id], pch=16, asp = 1, cex=0.5)
+# lines(sds, lwd = 3, col = "black")
+
+# # Reduced for testing
+# filt_counts <- counts[rowSums(counts > 5) > ncol(counts)/100, ]
+# dim(filt_counts)
+
+pseudo.paths <- slingPseudotime(pto)
+head(pseudo.paths)
+shared.pseudo <- rowMeans(pseudo.paths, na.rm=TRUE)
+
+# Need to loop over the paths and add each one separately.
+gg <- scater::plotUMAP(pto, colour_by=I(shared.pseudo))
+embedded <- embedCurves(pto, "UMAP")
+embedded <- slingCurves(embedded)
+for (path in embedded) {
+  embedded <- data.frame(path$s[path$ord,])
+gg <- gg + geom_path(data=embedded, aes(x=UMAP_1, y=UMAP_2), size=1.2)
+}
+
+gg
+
+head(embedded)
+
+# set.seed(91823)
+# icMat <- evaluateK(counts = counts, 
+#                    sds = sds, 
+#                    k = 3:10, 
+#                    nGenes = 200, 
+#                    verbose = T, 
+#                    plot = TRUE)
+# tradeSeq::plot_evalutateK_results(icMat)
+# print(icMat[1:2, ])
+
+# saveRDS(icMat, "results/knots.rds")
+
+
+# BPPARAM <- BiocParallel::bpparam()
+# BPPARAM # lists current options
+# BPPARAM$workers <- 30 
+# BiocParallel::register(BiocParallel::SerialParam())
+
+# # fit negative binomial GAM
+# U <- model.matrix(~Culture +
+#                    Culture_days + 
+#                    Sex + 
+#                    CC.Difference + 
+#                    nFeature_RNA +
+#                    nCount_RNA +
+#                    percent.mt, 
+#                    data = as.data.frame(colData(merp)))
+
+
+
+# var_genes <- VariableFeatures(master)
+# variable_genes <- GetAssayData(master)[var_genes,]
+
+# sce <- scry::devianceFeatureSelection(counts)
+
+# # Filter for highly variable
+all(colnames(counts) %in% rownames(U))
+# blips <- counts[, colnames(counts) %in% rownames(U)]
+# all(colnames(blips) %in% rownames(U))
+
+# length(var_genes)
+# var_genes <- var_genes[var_genes %in% rownames(blips)]
+# length(var_genes)
+
+# final_counts <- as.matrix(blips)
+
+# system.time(
+# nerfs <- fitGAM(
+#                 counts = final_counts, 
+#                 genes = var_genes, 
+#                 # genes = 1:2, 
+#                 sds = sds, 
+#                 U = U,
+#                 verbose = T, 
+#                 parallel = T, 
+#                 BPPARAM = BPPARAM,
+#                 nknots = 6,
+#                 sce = T)
+# )
+
+# Fitting a model to allow for differential expression analyses
+
+nerfs <- fitGAM(
+                counts = counts, 
+                genes = var_genes, 
+                # genes = 1:2, 
+                sds = sds, 
+                U = U,
+                verbose = T, 
+                parallel = T, 
+                BPPARAM = BPPARAM,
+                nknots = 6,
+                sce = T)
+
+# saveRDS(nerfs, "results/gam_model_20_counts.rds")
+gam <- readRDS("results/gam_model_20_counts.rds")
+```
+
+## Differential expression, stacked bars, heat maps and chi-sq
+
+```{r}
+# Packages ----------------------------------------------------------------
+
+suppressMessages(library(slingshot))
+suppressMessages(library(tradeSeq))
+suppressMessages(library(tidyverse))
+suppressMessages(library(org.Hs.eg.db))
+suppressMessages(library(clusterProfiler))
+suppressMessages(library(openxlsx))
+
+# Functions ---------------------------------------------------------------
+
+format_results <- function(dframe){
+  dframe$refined_p <- stats::pchisq(dframe$waldStat, 
+                                    df = dframe$df, 
+                                    lower.tail = FALSE, 
+                                    log.p = F)
+  # dframe$refined_p <- 1 - stats::pchisq(dframe$waldStat, df = dframe$df)
+  # dframe$pvalue <- NULL
+  dframe$fdr <- p.adjust(dframe$refined_p, method="BH", n=length(dframe$refined_p))
+  dframe <- dframe[order(dframe$refined_p), ]
+  dframe$feature_id <- rownames(dframe)
+  dframe <- 
+    dframe %>% 
+    dplyr::filter(fdr<0.05) %>% 
+    # dplyr::filter(logFC>1.5) %>%. -will need an ifelse if want to include
+    arrange(desc(waldStat))
+  dframe$pvalue <- NULL
+  return(dframe)
+}
+enrichment_startvsend <- function(df) {
+    map(df, ~
+          .x %>%
+          dplyr::filter(fdr < 0.05) %>%
+          pull(feature_id)) %>%
+    map(
+      ~ enrichGO(
+        gene = .x,
+        OrgDb = org.Hs.eg.db,
+        keyType = "SYMBOL",
+        ont = "ALL",
+        pvalueCutoff = 0.05,
+        readable = TRUE
+      )
+    ) %>%
+    map(as_tibble) %>%
+    map(~ filter(.x, Count >= 3))
+}
+arts <- function(number_used, results_tab){
+  list_whole <- results_tab[,grep(number_used, colnames(results_tab))]
+  return(list_whole)
+}
+sort_list_by_colname <- function(df, matching_pattern, dec){
+  darble <- colnames(df)[grep(matching_pattern, colnames(df), ignore.case=T)]
+  if(dec){
+    df <- arrange(df, desc(!!sym(darble)))
+  } else{
+    df <- arrange(df, !!sym(darble))
+  }
+  return(df)
+}
+filter_list_by_colname <- function(df, matching_pattern, sig_level){
+  darble <- colnames(df)[grep(matching_pattern, colnames(df), ignore.case=T)]
+  df <- filter(df, !!sym(darble)<sig_level)
+  return(df)
+}
+
+# Import ------------------------------------------------------------------
+
+pto <- readRDS("data/pto.rds")
+sds <- readRDS("data/sds.rds")
+res <- readRDS("data/assores_ind_lineages.rds")
+gam <- readRDS("data/gam_model_20_counts.rds")
+var_genes <- readRDS("data/var_genes.rds")
+seur_obj <- readRDS("../21-11-18-single_cell_seq/data/processed/22-11-29-master_updated.rds")
+
+# Association test (genes that change with pseudotime) --------------------
+
+# results_list <- list()
+# results_list[["global"]] <- select(res, waldStat, df, pvalue, meanLogFC)
+# results_list[["lin_1"]] <- select(res, contains("_1"), meanLogFC)
+# results_list[["lin_2"]] <- select(res, contains("_2"), meanLogFC)
+# results_list[["lin_3"]] <- select(res, contains("_3"), meanLogFC)
+# results_list[["lin_4"]] <- select(res, contains("_4"), meanLogFC)
+# results_list[["lin_5"]] <- select(res, contains("_5"), meanLogFC)
+
+# Create two vectors: one for list names and another for search patterns
+results_list <- list()
+list_names <- c("global", "lin_1", "lin_2", "lin_3", "lin_4", "lin_5")
+search_patterns <- c("", "_1", "_2", "_3", "_4", "_5")
+
+# Use map2 to create the results_list
+results_list <- map2(list_names, search_patterns, function(list_name, search_pattern) {
+  if (list_name == "global") {
+    selected_columns <- select(res, waldStat, df, pvalue, meanLogFC)
+  } else {
+    selected_columns <- select(res, contains(search_pattern), meanLogFC)
+  }
+  selected_columns
+})
+
+# Assign the list names to results_list
+names(results_list) <- list_names
+
+
+# Take number out of colnames so all can be bound
+for (i in names(results_list)){
+  colnames(results_list[[i]]) <- gsub("_(\\d{1})", "", colnames(results_list[[i]]))
+}
+
+final_res <- map(results_list, format_results)
+
+wb <- createWorkbook()
+
+dirf <- 
+  final_res %>% 
+  map(~arrange(.x, fdr)) %>% 
+  map(~rownames_to_column(.x, var="gene"))
+tot <- bind_rows(dirf, .id = "lineage")
+# write_csv(tot, "23-04-12-pseudo_DGE.csv")
+
+addWorksheet(wb, "assn_test")
+writeData(wb, "assn_test", tot)
+
+# Start vs. end (genes that change between two points) --------------------
+
+# Also called discovering progenitor genes
+
+startRes <- startVsEndTest(gam, 
+                           global=T, 
+                           lineages=T #,
+                           # l2fc=1
+                           )
+start_res <- list()
+start_res[["global"]] <- select(startRes, waldStat, df, pvalue)
+start_res[["lin_1"]] <- select(startRes, contains("1"))
+start_res[["lin_2"]] <- select(startRes, contains("2"))
+start_res[["lin_3"]] <- select(startRes, contains("3"))
+start_res[["lin_4"]] <- select(startRes, contains("4"))
+start_res[["lin_5"]] <- select(startRes, contains("5"))
+
+for (i in names(start_res)){
+  colnames(start_res[[i]]) <- gsub("lineage(\\d{1})|_lineage(\\d{1})", "", colnames(start_res[[i]]))
+}
+
+sorted_res <- map(start_res, format_results)
+
+dirf <- 
+  sorted_res %>% 
+  map(~arrange(.x, fdr)) %>% 
+  map(~rownames_to_column(.x, var="gene"))
+tot <- bind_rows(dirf, .id = "lineage")
+# write_csv(tot, "23-04-12-pseudo_DGE.csv")
+addWorksheet(wb, "start_vs_end")
+writeData(wb, "start_vs_end", tot)
+
+saveWorkbook(wb, "23-04-12-pseudo_DGE.xlsx", overwrite = TRUE)
+
+genes_sve <-map(sorted_res, ~dplyr::filter(.x, fdr <0.05)) 
+clipr::write_clip(genes_sve$global)
+clipr::write_clip(genes_sve$lin_1)
+clipr::write_clip(genes_sve$lin_2)
+clipr::write_clip(genes_sve$lin_3)
+clipr::write_clip(genes_sve$lin_4)
+clipr::write_clip(genes_sve$lin_5)
+
+enr_res <- enrichment_startvsend(sorted_res)
+
+map(enr_res, ~
+      .x %>% 
+      dplyr::filter(p.adjust <0.05)) %>% 
+  bind_rows(.id = "Lineage") %>% 
+  clipr::write_clip()
+
+
+plot(reducedDims(pto)$UMAP, col = colors[pto$cluster_id], pch=16, asp = 1, cex=0.5)
+# only plot first lineage
+lines(SlingshotDataSet(pto), linInd=1)
+# only plot second lineage
+lines(SlingshotDataSet(pto), linInd=2)
+# plot both lineages
+lines(SlingshotDataSet(sce))
+
+obj <- 
+plotGeneCount(curve = bbp, 
+              clusters = apply(slingClusterLabels(bbp), 1, which.max),
+              models = gam) 
+
+
+plotGeneCount(pto, counts, gene = "NES")
+plotGeneCount(pto, counts, gene = "HIST1H4C")
+plotGeneCount(pto, counts, gene = "POSTN")
+plotSmoothers(gam, counts, "NES")
+plotSmoothers(gam, counts, "DES")
+plotSmoothers(gam, counts, "H19")
+plotSmoothers(gam, counts, "MYF5")
+plotSmoothers(gam, counts, "POSTN")
+plotSmoothers(gam, counts, "MYL1")
+plotSmoothers(gam, counts, "MYOD1")
+plotSmoothers(gam, counts, "TNNT1")
+plotSmoothers(gam, counts, "BRCA1")
+plotSmoothers(gam, counts, "HIST1H4C") +
+  facet_wrap(~lineage)
+
+curve.assignments <- slingBranchID(pto)
+table(curve.assignments)
+
+# Between lineages (endpoint) ---------------------------------------------
+
+# Use previous to pick two lineages then study difference?
+
+wb <- createWorkbook()
+
+bls <- diffEndTest(gam, global=T, pairwise=T)
+
+two_vs_everything <- select(bls, waldStat, df, pvalue, contains("2"))
+
+obs <- map(c(1,3,4,5), ~arts(.x,two_vs_everything)) 
+obs <- purrr::set_names(obs, c("lin1", "lin3", "lin4", "lin5")) 
+
+obs <- 
+  obs %>% 
+  map(~sort_list_by_colname(.x, "wald", dec=T)) %>% 
+  map(~filter_list_by_colname(.x, "pvalue", sig_level=0.05)) %>% 
+  map(~rownames_to_column(.x, var="gene"))
+
+
+# Iterate through the list of data frames and add each as a sheet to the workbook
+for (sheet_name in names(obs)) {
+  addWorksheet(wb, sheet_name)
+  writeData(wb, sheet_name, obs[[sheet_name]])
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, "results/23-04-12-pseudo_between_lineages_endpoint.xlsx", overwrite = TRUE)
+
+# Between lineage (body) --------------------------------------------------
+
+patternRes <- patternTest(gam, global=T, pairwise=T)
+two_vs_everything <- select(patternRes, waldStat, df, pvalue, contains("2"))
+
+obs <- map(c(1,3,4,5), ~arts(.x,two_vs_everything)) 
+obs <- purrr::set_names(obs, c("lin1", "lin3", "lin4", "lin5")) 
+
+obs <- 
+  obs %>% 
+  map(~sort_list_by_colname(.x, "wald", dec=T)) %>% 
+  map(~filter_list_by_colname(.x, "pvalue", sig_level=0.05)) %>% 
+  map(~rownames_to_column(.x, var="gene"))
+
+wb <- createWorkbook()
+
+# Iterate through the list of data frames and add each as a sheet to the workbook
+for (sheet_name in names(obs)) {
+  addWorksheet(wb, sheet_name)
+  writeData(wb, sheet_name, obs[[sheet_name]])
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, "results/23-04-12-pseudo_between_lineages_body.xlsx", overwrite = TRUE)
+
+
+# Curve assignments -------------------------------------------------------
+## Stack plots for cell / sample characteristics per lineage
+
+branch_ids <- slingBranchID(pto)
+branchids_df <- enframe(branch_ids, name="cell_id", value="lineage")
+branchids_df2 <- 
+  branchids_df %>% 
+  separate(cell_id, 
+           sep="_", 
+           into=c("sample_id", "barcode"), 
+           convert=TRUE,
+           remove=FALSE) %>% 
+  mutate(across(sample_id, as_factor))
+
+ibs <- colData(pto)
+ibs <- 
+  tibble("id" = rownames(ibs),
+         "broad_samples" = ibs$ID,
+         "status_binary" = ibs$status_binary,
+         "grip" = ibs$xamaxgrip_quart,
+         "bmi" = ibs$xabmi_quart,
+         "almi" = ibs$almhsq_quart,
+         "gait" = ibs$xwspdms_quart)
+
+branchids_df2 <- left_join(branchids_df2, ibs, by=c("cell_id" = "id") )
+
+ggplot(branchids_df2, aes(x=lineage, fill=gait)) + 
+  geom_bar() 
+
+stack_for_variable <- function(variable){
+  variable <- enquo(variable)
+tarp <-
+branchids_df2 %>%
+  group_by(lineage, !!variable) %>%
+  tally()
+
+tarp <-
+  filter(tarp, lineage %in% c("1,2,3,4,5",
+                              "1", "2", "3", "4", "5"))
+
+totals <- 
+  tarp %>%
+  group_by(lineage) %>%
+  summarize(total = sum(n))
+
+tarp$lineage <-
+  factor(tarp$lineage, levels = c("1,2,3,4,5",
+                                    "1", "2", "3", "4", "5"))
+
+ggplot(tarp, aes(fill=!!variable, y=n, x=lineage)) + 
+  geom_bar(position="fill", stat="identity") 
+}
+
+stack_for_variable(gait)
+stack_for_variable(almi)
+stack_for_variable(grip)
+
+
+# Chi-sq ------------------------------------------------------------------
+## Chi-sq to confirm whether differences in proportions seen in previous stacked
+## bars are significant
+
+### almi
+cs_test <- 
+  branchids_df2 %>% 
+  group_by(lineage, almi) %>% 
+  tally() %>% 
+  drop_na() %>% 
+  mutate(almi = paste0("quartile_", almi)) %>% 
+  pivot_wider(names_from = almi, values_from = n) %>% 
+  filter(lineage %in% c( "1", "2", "3", "4", "5")) %>%
+  as.data.frame()
+
+x <- as.table(cbind(cs_test$quartile_1, 
+                    cs_test$quartile_2,
+                    cs_test$quartile_3,
+                    cs_test$quartile_4))
+dimnames(x) <- list(lineage = c(paste0("lineage_", seq(1,5,1))),
+                    quartile = c("quartile_1", 
+                                 "quartile_2", 
+                                 "quartile_3", 
+                                 "quartile_4"))
+nabs <- chisq.test(x)
+corrplot::corrplot(nabs$residuals, is.cor = FALSE)
+contrib <- 100*nabs$residuals^2/nabs$statistic
+round(contrib, 3)
+corrplot::corrplot(contrib, is.cor = FALSE)
+
+### Grip
+cs_test <- 
+  branchids_df2 %>% 
+  group_by(lineage, grip) %>% 
+  tally() %>% 
+  drop_na() %>% 
+  mutate(grip = paste0("quartile_", grip)) %>% 
+  pivot_wider(names_from = grip, values_from = n) %>% 
+  filter(lineage %in% c( "1", "2", "3", "4", "5")) %>%
+  as.data.frame()
+
+x <- as.table(cbind(cs_test$quartile_1, 
+                    cs_test$quartile_2,
+                    cs_test$quartile_3,
+                    cs_test$quartile_4))
+dimnames(x) <- list(lineage = c(paste0("lineage_", seq(1,5,1))),
+                    quartile = c("quartile_1", 
+                                 "quartile_2", 
+                                 "quartile_3", 
+                                 "quartile_4"))
+nabs <- chisq.test(x)
+corrplot::corrplot(nabs$residuals, is.cor = FALSE)
+contrib <- 100*nabs$residuals^2/nabs$statistic
+round(contrib, 3)
+corrplot::corrplot(contrib, is.cor = FALSE)
+
+### gait
+cs_test <- 
+  branchids_df2 %>% 
+  group_by(lineage, gait) %>% 
+  tally() %>% 
+  drop_na() %>% 
+  mutate(gait = paste0("quartile_", gait)) %>% 
+  pivot_wider(names_from = gait, values_from = n) %>% 
+  filter(lineage %in% c( "1", "2", "3", "4", "5")) %>%
+  as.data.frame()
+
+x <- as.table(cbind(cs_test$quartile_1, 
+                    cs_test$quartile_2,
+                    cs_test$quartile_3,
+                    cs_test$quartile_4))
+dimnames(x) <- list(lineage = c(paste0("lineage_", seq(1,5,1))),
+                    quartile = c("quartile_1", 
+                                 "quartile_2", 
+                                 "quartile_3", 
+                                 "quartile_4"))
+nabs <- chisq.test(x)
+corrplot::corrplot(nabs$residuals, is.cor = FALSE)
+contrib <- 100*nabs$residuals^2/nabs$statistic
+round(contrib, 3)
+corrplot::corrplot(contrib, is.cor = FALSE)
+
+### This is a version which includes the root branch, i.e. 1,2,3,4 and 5
+cs_test <- 
+  branchids_df2 %>% 
+  group_by(lineage, gait) %>% 
+  tally() %>% 
+  drop_na() %>% 
+  mutate(gait = paste0("quartile_", gait)) %>% 
+  pivot_wider(names_from = gait, values_from = n) %>% 
+  filter(lineage %in% c("1,2,3,4,5", 
+    "1", "2", "3", "4", "5")) %>% 
+  as.data.frame()
+
+x <- as.table(cbind(cs_test$quartile_1, 
+                    cs_test$quartile_2,
+                    cs_test$quartile_3,
+                    cs_test$quartile_4))
+dimnames(x) <- list(lineage = c(c("lineage_1", "lineage_1,2,3,4,5"), c(paste0("lineage_", seq(2,5,1)))),
+                    quartile = c("quartile_1", 
+                                 "quartile_2", 
+                                 "quartile_3", 
+                                 "quartile_4"))
+nabs <- chisq.test(x)
+corrplot::corrplot(nabs$residuals, is.cor = FALSE)
+contrib <- 100*nabs$residuals^2/nabs$statistic
+round(contrib, 3)
+corrplot::corrplot(contrib, is.cor = FALSE)
+
+
+### More direct way of doing the chi-sq plots
+c_sq_one <- function(df, variable){
+  # variable <- enquo(variable)
+  # One lineage
+  cs_test <- 
+    df %>% 
+    group_by(lineage, {{variable}}) %>% 
+    tally() %>% 
+    drop_na() %>% 
+    mutate({{variable}}:= paste0("quartile_", {{variable}})) %>% 
+    pivot_wider(names_from = {{variable}}, values_from = n) %>% 
+    filter(lineage %in% c("1", "2", "3", "4", "5")) %>% 
+    as.data.frame()
+  
+  x <- as.table(cbind(cs_test$quartile_1,
+                      cs_test$quartile_2,
+                      cs_test$quartile_3,
+                      cs_test$quartile_4))
+  dimnames(x) <- list(lineage = c(paste0("lineage_", seq(1,5,1))),
+                      quartile = c("quartile_1",
+                                   "quartile_2",
+                                   "quartile_3",
+                                   "quartile_4"))
+  nabs <- chisq.test(x)
+  corrplot::corrplot(nabs$residuals, is.cor = FALSE)
+  # contrib <- 100*nabs$residuals^2/nabs$statistic
+  # round(contrib, 3)
+  # corrplot(contrib, is.cor = FALSE)
+  message(deparse(substitute(variable)), " p_value =", format(nabs$p.value, digits=3))
+  return(nabs)
+}
+
+c_sq_one(branchids_df2, almi)
+c_sq_one(branchids_df2, grip)
+c_sq_one(branchids_df2, gait)
+
+### Includes all the lineages in the chi-sq plots
+c_sq_all <- function(variable){
+# All lineages
+cs_test <- 
+  branchids_df2 %>% 
+  group_by(lineage, {{variable}}) %>% 
+  tally() %>% 
+  drop_na() %>% 
+  mutate({{variable}} := paste0("quartile_", {{variable}})) %>% 
+  pivot_wider(names_from = {{variable}}, values_from = n) %>% 
+  replace_na(list(quartile_1=0,
+                  quartile_2=0,
+                  quartile_3=0,
+                  quartile_4=0)) %>% 
+  # filter(lineage %in% c("1,2,3,4,5",
+  #                             "1", "2", "3", "4", "5")) %>% 
+  as.data.frame()
+
+x <- as.table(cbind(cs_test$quartile_1, 
+                    cs_test$quartile_2,
+                    cs_test$quartile_3,
+                    cs_test$quartile_4))
+dimnames(x) <- list(lineage = c(as.character(cs_test$lineage)),
+                    quartile = c("quartile_1", 
+                                 "quartile_2", 
+                                 "quartile_3", 
+                                 "quartile_4"))
+nabs <- chisq.test(x)
+corrplot::corrplot(nabs$residuals, is.cor = FALSE)
+# contrib <- 100*nabs$residuals^2/nabs$statistic
+# round(contrib, 3)
+# corrplot(contrib, is.cor = FALSE)
+}
+
+c_sq_all(almi)
+c_sq_all(grip)
+c_sq_all(gait)
+
+# Clustering --------------------------------------------------------------
+
+# library(clusterExperiment)
+# nPointsClus <- 20
+# clusPat <- clusterExpressionPatterns(models = gam, 
+#                                      nPoints = nPointsClus,
+#                                      genes = var_genes)
+# 
+# # saveRDS(clusPat, "data/clusPat.rds")
+# clusPat <- readRDS("data/clusPat.rds")
+# clusterLabels <- primaryCluster(clusPat$rsec)
+# primaryClusterNamed(clusPat$rsec)
+# 
+# tableClusters(clusPat$rsec)
+# head(clusterMatrix(clusPat$rsec)[,1:4])
+# 
+# nClusterings(clusPat$rsec)
+# nSamples(clusPat$rsec)
+# nFeatures(clusPat$rsec)
+# 
+# plotReducedDims(clusPat$rsec,whichDims=c(1:10))
+# plotReducedDims(clusPat$rsec)
+# 
+# cUniq <- unique(clusterLabels)
+# cUniq <- cUniq[!cUniq == -1] # remove unclustered genes
+# unique(cUniq)
+# 
+# for (xx in cUniq[1:10]) {
+#   cId <- which(clusterLabels == xx)
+#   p <- ggplot(data = data.frame(x = 1:nPointsClus,
+#                                 y = rep(range(clusPat$yhatScaled[cId, ]),
+#                                         nPointsClus / 2)),
+#               aes(x = x, y = y)) +
+#     geom_point(alpha = 0) +
+#     labs(title = paste0("Cluster ", xx),  x = "Pseudotime", y = "Normalized expression") +
+#     theme_classic() +
+#     theme(plot.title = element_text(hjust = 0.5))
+#   for (ii in 1:length(cId)) {
+#     geneId <- rownames(clusPat$yhatScaled)[cId[ii]]
+#     p <- p +
+#       geom_line(data = data.frame(x = rep(1:nPointsClus, 5),
+#                                   y = clusPat$yhatScaled[geneId, ],
+#                                   lineage = rep(0:4, each = nPointsClus)),
+#                 aes(col = as.character(lineage), group = lineage), lwd = 1.5)
+#   }
+#   p <- p + guides(color = FALSE) +
+#     scale_color_manual(values = c("orange", "darkseagreen3", "steelblue4", "indianred3", "mediumpurple3"),
+#                        breaks = c("0", "1", "2", "3", "4"))  
+#   print(p)
+# }
+
+
+# Heatmaps ----------------------------------------------------------------
+
+## This below line can be used to search whether genes are available in the 
+## gam object
+
+rownames(gam)[grep("^col", rownames(gam), ignore.case=T)]
+
+### based on mean smoother
+# yhatSmooth <- predictSmooth(gam, gene = var_genes[1:50], nPoints = 50, tidy = FALSE)
+# yhatSmooth <- yhatSmooth[order(apply(yhatSmooth,1,which.max)), ]
+
+## Put genes of interest for heatmaps in this object
+yhatSmooth <- predictSmooth(gam, gene = c("H19",
+                                          "MKI67",
+                                          "TOP2A",
+                                          "PCNA",
+                                          "CCNE2",
+                                          "CCND1",
+                                          "CCND2",
+                                          "CENPK",
+                                          "CDC6",
+                                          "TNNT2",
+                                          "MYH3",
+                                          "MYOG",
+                                          "SQSTM1",
+                                          "GSTP1",
+                                          "NQO1",
+                                          "POSTN",
+                                          "FBN1",
+                                          "TTN",
+                                          "HES1",
+                                          "BRCA1",
+                                          "BRCA2",
+                                          "COX5B",
+                                          "ACTA2",
+                                          "ACTA1",
+                                          "RAD21",
+                                          "RAD51AP1",
+                                          "NES",
+                                          "MEF2C",
+                                          "DES",
+                                          "MYF5",
+                                          "CDKN1A",
+                                          "CDKN2A",
+                                          "FTH1",
+                                          "FTL",
+                                          "MYOD1"), nPoints = 50, tidy = TRUE)
+
+# Most highly expressed per given timepoint (orders it nicely)
+nums <- c(1,2,3,4,5)
+lins <- list()
+for(i in nums){
+  iff <- paste0("lin", i)
+  # lins[[paste0(iff)]] <- 
+  # arts(paste0("lineage", i), yhatSmooth)
+  bib <- arts(paste0("lineage", i), yhatSmooth)
+  lins[[paste0(iff)]] <- bib[order(apply(bib,1,which.max)), ]
+  #lins[[paste0(iff)]] <- bib
+  # print(i)
+}
+
+## The below will plot the heatmaps individually 
+heatm <- 
+pheatmap::pheatmap(t(scale(t(lins$lin1[, 1:50]))),
+                   cluster_cols = FALSE,
+                   cluster_rows = FALSE,
+                   show_rownames = TRUE, 
+                   show_colnames = TRUE)
+
+pheatmap::pheatmap(t(scale(t(lins$lin2[, 1:50]))),
+                   cluster_cols = FALSE,
+                   cluster_rows = TRUE,
+                   show_rownames = TRUE, 
+                   show_colnames = TRUE)
+
+pheatmap::pheatmap(t(scale(t(lins$lin3[, 1:50]))),
+                   cluster_cols = FALSE,
+                   cluster_rows = TRUE,
+                   show_rownames = TRUE, 
+                   show_colnames = TRUE)
+
+pheatmap::pheatmap(t(scale(t(lins$lin4[, 1:50]))),
+                   cluster_cols = FALSE,
+                   cluster_rows = FALSE,
+                   show_rownames = TRUE, 
+                   show_colnames = TRUE)
+
+heatSmooth <- pheatmap::pheatmap(t(scale(t(lins$lin5[, 1:50]))),
+                   cluster_cols = FALSE,
+                   cluster_rows = FALSE,
+                   show_rownames = TRUE, 
+                   show_colnames = TRUE)
+
+# earlyDERes <- earlyDETest(gam, knots = c(2, 3))
+# oEarly <- order(earlyDERes$waldStat, decreasing = TRUE)
+# head(rownames(earlyDERes)[oEarly])
+# plotGeneCount(pto, counts, gene = "NES")
+```
