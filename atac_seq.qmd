@@ -68,7 +68,7 @@ To note:
 
 # Processing script
 
--   Note - this code is UNFINISHED  - need to remove MTs, deduplicate, remove non-uniques and merge bams. There are sites which could provide suggestions [here](https://yiweiniu.github.io/blog/2019/03/ATAC-seq-data-analysis-from-FASTQ-to-peaks/) and [here](https://informatics.fas.harvard.edu/atac-seq-guidelines.html) for example. There is also some suggested code already in place.
+-   Note - this code is UNFINISHED - need to remove MTs, deduplicate, remove non-uniques and merge bams. There are sites which could provide suggestions [here](https://yiweiniu.github.io/blog/2019/03/ATAC-seq-data-analysis-from-FASTQ-to-peaks/) and [here](https://informatics.fas.harvard.edu/atac-seq-guidelines.html) for example. There is also some suggested code already in place.
 
 -   There are multiple pre-built [indexes](https://benlangmead.github.io/aws-indexes/bowtie) available for bowtie2, so dont necessariy need to make your own (but can be done).
 

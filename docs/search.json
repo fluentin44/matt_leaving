@@ -4,7 +4,7 @@
     "href": "index.html",
     "title": "Bioinformatics handoff",
     "section": "",
-    "text": "This is a summary of my work, covering as far as possible details on:\n\nSingle cell\nSingle nuclear\nRNAseq\nPseudobulk\nATACseq"
+    "text": "This is a summary of my work, covering as far as possible details on:\n\nSingle cell\nSingle nuclear\nPseudobulk\nATACseq"
   },
   {
     "objectID": "about.html",
@@ -117,5 +117,12 @@
     "title": "Pseudotime",
     "section": "",
     "text": "Pseudotime conducted on the single cell dataset."
+  },
+  {
+    "objectID": "pseudobulk.html",
+    "href": "pseudobulk.html",
+    "title": "Pseudobulk",
+    "section": "",
+    "text": "Summary\n\n\nSetup"
   }
 ]

@@ -4,7 +4,7 @@ title: "Overview"
 
 # Summary
 
-# Setup 
+# Setup
 
 -   Single cell has been previously aligned with a pipeline developed at UoS, based on the [McCarrol lab protocol](https://github.com/broadinstitute/Drop-seq/releases), albeit with modification to allow for multi-mapping reads, but with no capacity to account for intronic reads. It was implemented by Elie Antoun.
 
