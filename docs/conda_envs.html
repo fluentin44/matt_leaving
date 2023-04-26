@@ -219,7 +219,12 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#conda-envs-for-linux" id="toc-conda-envs-for-linux" class="nav-link active" data-scroll-target="#conda-envs-for-linux">Conda envs for linux</a></li>
+  <li><a href="#conda-envs-for-linux" id="toc-conda-envs-for-linux" class="nav-link active" data-scroll-target="#conda-envs-for-linux">Conda envs for linux</a>
+  <ul class="collapse">
+  <li><a href="#qc-env" id="toc-qc-env" class="nav-link" data-scroll-target="#qc-env">QC env</a></li>
+  <li><a href="#sc-qc" id="toc-sc-qc" class="nav-link" data-scroll-target="#sc-qc">SC QC</a></li>
+  <li><a href="#pseudotime-env" id="toc-pseudotime-env" class="nav-link" data-scroll-target="#pseudotime-env">Pseudotime env</a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
@@ -250,6 +255,11 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li><p>You can then create an environment in conda by using <code>conda env create -n &lt;ENVNAME (you choose)&gt; –file &lt;ENV.yml (file you just saved)&gt;</code></p></li>
 <li><p>NOTE - these environments listed are for linux (Iridis) only - if you wanted to use these elsewhere (mac or pc) you could set the environments up on linux and then use <code>conda env export —from-history&gt;&lt;ENV.yml&gt;</code></p></li>
 <li><p>NOTE - sc_qc is big and will take a long time to set itself up.</p></li>
+</ul>
+<section id="qc-env" class="level2">
+<h2 class="anchored" data-anchor-id="qc-env">QC env</h2>
+<ul>
+<li>Used for the QC of single nuclear data (as far as I can remember)</li>
 </ul>
 <div class="sourceCode" id="cb1"><pre class="sourceCode numberSource yml number-lines code-with-copy"><code class="sourceCode yaml"><span id="cb1-1"><a href="#cb1-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> qc_env</span></span>
 <span id="cb1-2"><a href="#cb1-2"></a><span class="fu">channels</span><span class="kw">:</span></span>
@@ -535,6 +545,12 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb1-282"><a href="#cb1-282"></a><span class="at">  </span><span class="kw">-</span><span class="at"> zstandard=0.19.0=py310hdeb6495_1</span></span>
 <span id="cb1-283"><a href="#cb1-283"></a><span class="at">  </span><span class="kw">-</span><span class="at"> zstd=1.5.2=ha4553b6_0</span></span>
 <span id="cb1-284"><a href="#cb1-284"></a><span class="fu">prefix</span><span class="kw">:</span><span class="at"> /home/moh1u21/.conda/envs/qc_env</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="sc-qc" class="level2">
+<h2 class="anchored" data-anchor-id="sc-qc">SC QC</h2>
+<ul>
+<li>Used for the R bit of the single nuclear pipeline</li>
+</ul>
 <div class="sourceCode" id="cb2"><pre class="sourceCode numberSource yml number-lines code-with-copy"><code class="sourceCode yaml"><span id="cb2-1"><a href="#cb2-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> sc_qc</span></span>
 <span id="cb2-2"><a href="#cb2-2"></a><span class="fu">channels</span><span class="kw">:</span></span>
 <span id="cb2-3"><a href="#cb2-3"></a><span class="at">  </span><span class="kw">-</span><span class="at"> conda-forge</span></span>
@@ -1148,6 +1164,9 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb2-611"><a href="#cb2-611"></a><span class="at">  </span><span class="kw">-</span><span class="at"> zlib-ng=2.0.7=h0b41bf4_0</span></span>
 <span id="cb2-612"><a href="#cb2-612"></a><span class="at">  </span><span class="kw">-</span><span class="at"> zstd=1.5.2=h3eb15da_6</span></span>
 <span id="cb2-613"><a href="#cb2-613"></a><span class="fu">prefix</span><span class="kw">:</span><span class="at"> /home/moh1u21/.conda/envs/sc_qc</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="pseudotime-env" class="level2">
+<h2 class="anchored" data-anchor-id="pseudotime-env">Pseudotime env</h2>
 <div class="sourceCode" id="cb3"><pre class="sourceCode numberSource yml number-lines code-with-copy"><code class="sourceCode yaml"><span id="cb3-1"><a href="#cb3-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> pseudotime_env</span></span>
 <span id="cb3-2"><a href="#cb3-2"></a><span class="fu">channels</span><span class="kw">:</span></span>
 <span id="cb3-3"><a href="#cb3-3"></a><span class="at">  </span><span class="kw">-</span><span class="at"> conda-forge</span></span>
@@ -1536,6 +1555,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb3-386"><a href="#cb3-386"></a><span class="fu">prefix</span><span class="kw">:</span><span class="at"> /home/moh1u21/.conda/envs/pseudotime_env</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->

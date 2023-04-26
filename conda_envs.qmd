@@ -12,6 +12,10 @@ title: "Conda environments"
 
 -   NOTE - sc_qc is big and will take a long time to set itself up.
 
+## QC env
+
+-   Used for the QC of single nuclear data (as far as I can remember)
+
 ``` yml
 name: qc_env
 channels:
@@ -298,6 +302,10 @@ dependencies:
   - zstd=1.5.2=ha4553b6_0
 prefix: /home/moh1u21/.conda/envs/qc_env
 ```
+
+## SC QC
+
+-   Used for the R bit of the single nuclear pipeline
 
 ``` yml
 name: sc_qc
@@ -914,6 +922,8 @@ dependencies:
   - zstd=1.5.2=h3eb15da_6
 prefix: /home/moh1u21/.conda/envs/sc_qc
 ```
+
+## Pseudotime env
 
 ``` yml
 name: pseudotime_env

@@ -4,4 +4,759 @@ title: "Pseudobulk"
 
 # Summary
 
+Pseudobulk aggregates all single cell count data together to form a single set of counts for each sample, rather than counts from each cell.
+
 # Setup
+
+-   The project folder is `/Users/fluentin44/Library/CloudStorage/OneDrive-UniversityofSouthampton/21-11-18-single_cell_seq`
+
+-   The script used to generate the file `22-08-09-pseudobulk_by_cluster.xlsx` in the shared area is made by the script below which is located at `~/Library/CloudStorage/OneDrive-UniversityofSouthampton/21-11-18-single_cell_seq/src/22-08-09-pseudobulk_by_cluster.R` .
+
+# Processing script
+
+```{r}
+
+# Libraries ---------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(SingleCellExperiment))
+suppressPackageStartupMessages(library(Seurat))
+suppressPackageStartupMessages(library(scater))
+suppressPackageStartupMessages(library(ExperimentHub))
+suppressPackageStartupMessages(library(edgeR))
+suppressPackageStartupMessages(library(DESeq2))
+suppressPackageStartupMessages(library(batchelor))
+suppressPackageStartupMessages(library(pheatmap))
+suppressPackageStartupMessages(library(RColorBrewer))
+
+
+# Functions ---------------------------------------------------------------
+
+gene_ex_heatmap <- function(dds,
+                            voi,
+                            variables,
+                            rld,
+                            cluster_rows,
+                            cluster_cols) {
+  niff <- c(voi, variables)
+  select <- order(rowMeans(counts(dds, normalized = TRUE)),
+                  decreasing = TRUE)[1:20]
+  df <- as.data.frame(colData(dds)[, niff])
+  #rownames(df) <- colnames(counts(dds))
+  pheatmap(
+    assay(rld)[select, ],
+    cluster_rows = cluster_rows,
+    show_rownames = T,
+    cluster_cols = cluster_cols,
+    annotation_col = df
+  )
+}
+
+
+
+dea <- function(y, 
+                voi, 
+                variables, 
+                #continuous = NULL, 
+                variable_format,
+                wald=T){
+  
+  variable_format <- ensyms(variable_format)
+  
+  # countsToUse <- counts(sce)
+  # #colnames(countsToUse) <- colData(sce)$ID
+  # y <- DGEList(countsToUse, samples = colData(sce))
+  # 
+  # for (i in variables) {
+  #   lose <- is.na(y$samples[[i]])
+  #   y$samples <- y$samples[!lose, ]
+  #   y$counts <- y$counts[,colnames(y$counts) %in% rownames(y$samples)]
+  # }
+  # 
+  # lose <- is.na(y$samples[[voi]])
+  # y$samples <- y$samples[!lose, ]
+  # y$counts <- y$counts[,colnames(y$counts) %in% rownames(y$samples)]
+  # 
+  # discarded <- y$samples$ncells < 20
+  # y <- y[,!discarded]
+  # print(summary(discarded))
+  # enframe(summary(discarded))
+  # 
+  # keep <- filterByExpr(y, group=y$samples[[voi]]) 
+  # y <- y[keep, , keep.lib.sizes=FALSE] 
+  # print(summary(keep))
+  # enframe(summary(keep))
+  # 
+  # if(length(unique(y$samples$[[voi]])) > 1
+  
+  if(wald){
+    mod <- as.formula(paste("~", paste(variables, collapse="+"), "+", voi, sep=""))
+    
+    dds <- DESeqDataSetFromMatrix(y$counts, 
+                                  colData = y$samples, 
+                                  design = mod)
+    
+    # rld <- vst(dds, blind=TRUE)
+    
+    # Input is a matrix of log transformed values
+    # https://hbctraining.github.io/DGE_workshop/lessons/03_DGE_QC_analysis.html
+    rld <- vst(dds, blind=T)
+    rld_mat <- assay(rld)
+    rld_cor <- cor(rld_mat)
+    pca <- prcomp(t(rld_mat))
+    
+    # Create data frame with metadata and PC3 and PC4 values for input to ggplot
+    all(rownames(colData(rld)) == rownames(pca$x))
+    df <- as.data.frame(cbind(colData(rld), pca$x))
+    ggplot(df) + geom_point(aes(x=PC1, y=PC2, color = voi))
+    
+    DESeq2::plotPCA(rld, intgroup = voi)
+    
+    pheatmap::pheatmap(rld_cor, annotation = y$samples[, c(voi), drop=F])
+    
+    # Run DESeq2 differential expression analysis
+    dds <- DESeq(dds)
+    
+    # Plot dispersion estimates
+    plotDispEsts(dds)
+    
+    # Check the coefficients for the comparison
+    print(resultsNames(dds))
+    
+    gene_ex_heatmap(
+      dds,
+      voi = voi,
+      variables = variables,
+      rld,
+      cluster_rows = F,
+      cluster_cols = T
+    )
+    
+    if(variable_format == "continuous"){
+      # x <- readline(prompt="Please choose a coefficient ")
+      
+      res <- results(dds,
+                     name = voi,
+                     alpha = 0.05)
+      
+      res <- lfcShrink(dds,
+                       coef = voi,
+                       res=res,
+                       type = "apeglm")
+      
+      # Turn the results object into a tibble for use with tidyverse functions
+      res_tbl <- 
+        res %>%
+        data.frame() %>%
+        rownames_to_column(var="gene") %>%
+        as_tibble() %>%
+        arrange(padj, pvalue)
+      
+      dds <- res_tbl
+    }else if(variable_format == "catagorical"){
+      # x <- readline(prompt="Please choose a coefficient ")
+      interest <- resultsNames(dds)[length(resultsNames(dds))]
+      
+      res <- results(dds,
+                     name = interest,
+                     alpha = 0.05)
+      
+      res <- lfcShrink(dds,
+                       coef = interest,
+                       res=res,
+                       type = "apeglm")
+      
+      # Turn the results object into a tibble for use with tidyverse functions
+      res_tbl <- 
+        res %>%
+        data.frame() %>%
+        rownames_to_column(var="gene") %>%
+        as_tibble() %>%
+        arrange(padj, pvalue)
+      
+      dds <- res_tbl
+    }
+  }else{
+    mod <- as.formula(paste("~", paste(variables, collapse="+"), "+", voi, sep=""))
+    
+    dds <- DESeqDataSetFromMatrix(y$counts, 
+                                  colData = y$samples, 
+                                  design = mod)
+    
+    # rld <- vst(dds, blind=TRUE)
+    
+    # Input is a matrix of log transformed values
+    # https://hbctraining.github.io/DGE_workshop/lessons/03_DGE_QC_analysis.html
+    rld <- vst(dds, blind=T)
+    rld_mat <- assay(rld)
+    rld_cor <- cor(rld_mat)
+    pca <- prcomp(t(rld_mat))
+    
+    # Create data frame with metadata and PC3 and PC4 values for input to ggplot
+    all(rownames(colData(rld)) == rownames(pca$x))
+    df <- as.data.frame(cbind(colData(rld), pca$x))
+    ggplot(df) + geom_point(aes(x=PC1, y=PC2, color = voi))
+    
+    DESeq2::plotPCA(rld, intgroup = voi)
+    
+    pheatmap::pheatmap(rld_cor, annotation = y$samples[, c(voi), drop=F])
+    
+    # Run DESeq2 differential expression analysis
+    # dds <- DESeq(dds)
+    
+    design <- as.formula(paste("~", paste(variables, collapse="+"), "+", voi, sep=""))
+    reduced <- as.formula(paste("~", paste(variables, collapse="+"), sep=""))
+    
+    design
+    reduced
+    
+    # Run DESeq2 differential expression analysis
+    # Rather than evaluating whether a gene’s expression is up- or down-regulated 
+    # in one class compared to another, the LRT identifies genes that are changing 
+    # in expresssion in any direction across the different sample classes.
+    dds <- DESeq(dds, 
+                 test="LRT", 
+                 full = design,
+                 reduced = reduced)
+    
+    # Plot dispersion estimates
+    plotDispEsts(dds)
+    
+    # Check the coefficients for the comparison
+    print(resultsNames(dds))
+    
+    gene_ex_heatmap(
+      dds,
+      voi = voi,
+      variables = variables,
+      rld,
+      cluster_rows = F,
+      cluster_cols = T
+    )
+  
+      # x <- readline(prompt="Please choose a coefficient ")
+      
+      # res <- results(dds,
+      #                name = voi,
+      #                alpha = 0.05)
+      
+      res <- results(dds, alpha = 0.05)
+      
+      # res <- lfcShrink(dds,
+      #                  coef = voi,
+      #                  res=res,
+      #                  type = "apeglm")
+      
+      # Turn the results object into a tibble for use with tidyverse functions
+      res_tbl <- 
+        res %>%
+        data.frame() %>%
+        rownames_to_column(var="gene") %>%
+        as_tibble() %>%
+        arrange(padj, pvalue)
+      
+      dds <- res_tbl
+  }
+  return(dds)
+}
+
+summary_df <- function(x){
+  data.frame(less_0.05 = nrow(filter(x, padj<0.05)),
+             less_0.10 = nrow(filter(x, padj<0.10)),
+             less_0.15 = nrow(filter(x, padj<0.15)),
+             less_0.20 = nrow(filter(x, padj<0.20)),
+             less_0.25 = nrow(filter(x, padj<0.25)))
+}
+
+dea_qc <- function(sce, voi, variables){
+  
+  countsToUse <- counts(sce)
+  #colnames(countsToUse) <- colData(sce)$ID
+  y <- DGEList(countsToUse, samples = colData(sce))
+  
+  for (i in variables) {
+    lose <- is.na(y$samples[[i]])
+    y$samples <- y$samples[!lose, ]
+    y$counts <- y$counts[,colnames(y$counts) %in% rownames(y$samples)]
+  }
+  
+  lose <- is.na(y$samples[[voi]])
+  y$samples <- y$samples[!lose, ]
+  y$counts <- y$counts[,colnames(y$counts) %in% rownames(y$samples)]
+  
+  discarded <- y$samples$ncells < 20
+  y <- y[,!discarded]
+  print(summary(discarded))
+  
+  keep <- filterByExpr(y, group=y$samples[[voi]]) 
+  y <- y[keep, , keep.lib.sizes=FALSE] 
+  print(summary(keep))
+  
+  vars <- list()
+  for(i in variables){
+    vars[i] <- i
+  }
+  vars[[voi]] <- voi
+  
+  naps <- map_lgl(vars, ~{length(unique(y$samples[[.x]]))>1})
+  
+  if(any(naps==F)){
+    return(NULL)
+  }else{
+    return(y)
+  }
+  }
+
+# Read in data ------------------------------------------------------------
+
+master <- readRDS("data/processed/master_seurat_obj.rds")
+
+# Code --------------------------------------------------------------------
+
+set.seed(01001001)
+bobs <- as.SingleCellExperiment(master)
+sce <- aggregateAcrossCells(bobs, id=colData(bobs)[,c("ID")])
+
+countsToUse <- counts(sce)
+colnames(countsToUse) <- colData(sce)$ID
+y <- DGEList(countsToUse, samples = colData(sce))
+# aggregated_results_all <- list()
+
+
+# Per cluster -------------------------------------------------------------
+
+clusters <- as.character(levels(master$cluster_id))
+master_clusters <- list()
+for(i in clusters){
+  master_clusters[[i]] <- subset(x = master, subset = cluster_id == i)
+}
+master_clusters <- map(master_clusters, as.SingleCellExperiment)
+
+# nab <- subset(x = master, subset = cluster_id == 0)
+# babs <- as.SingleCellExperiment(nab)
+# sce <- aggregateAcrossCells(bobs, id=colData(bobs)[,c("ID")])
+
+sce <- map(master_clusters, ~aggregateAcrossCells(.x, id=colData(.x)[,c("ID")]))
+names(sce) <- paste0("cluster_", names(sce))
+
+
+# Continuous analyses -----------------------------------------------------
+
+ark <- 
+  map(sce, ~dea_qc(
+    .x,
+    voi = "almhsq_scaled",
+    variables = c("Sex", "age_scaled")
+  )) %>% 
+  discard(is.null) %>% 
+  map(~dea(
+    .x,
+    voi = "almhsq_scaled",
+    variables = c("Sex", "age_scaled"),
+    variable_format = continuous
+  ))
+
+almi_cont_results <- ark
+
+almi_cont <- map(ark, summary_df) %>% 
+  bind_rows(.id="cluster") %>% 
+  mutate(analysis = "almi_cont") %>% 
+  relocate(analysis, .before = everything())
+
+
+ark <- 
+  map(sce, ~dea_qc(
+    .x,
+    voi = "xamaxgrip_scaled",
+    variables = c("Sex", "age_scaled")
+  )) %>% 
+  discard(is.null) %>% 
+  map(~dea(
+    .x,
+    voi = "xamaxgrip_scaled",
+    variables = c("Sex", "age_scaled"),
+    variable_format = continuous
+  ))
+
+grip_cont_results <- ark
+
+grip_cont <- map(ark, summary_df) %>% 
+  bind_rows(.id="cluster") %>% 
+  mutate(analysis = "grip_cont") %>% 
+  relocate(analysis, .before = everything())
+
+
+ark <- 
+  map(sce, ~dea_qc(
+    .x,
+    voi = "xwspdms_scaled",
+    variables = c("Sex", "age_scaled")
+  )) %>% 
+  discard(is.null) %>% 
+  map(~dea(
+    .x,
+    voi = "xwspdms_scaled",
+    variables = c("Sex", "age_scaled"),
+    variable_format = continuous
+  ))
+
+gait_cont_results <- ark
+
+gait_cont <- 
+  map(ark, summary_df) %>% 
+  bind_rows(.id="cluster") %>% 
+  mutate(analysis = "gait_cont") %>% 
+  relocate(analysis, .before = everything())
+
+
+
+# Quartiile analyses ------------------------------------------------------
+
+ark <- 
+  map(sce, ~dea_qc(
+    .x,
+    voi = "almhsq_quart",
+    variables = c("Sex", "age_scaled")
+  )) 
+  
+  
+#ark$cluster_6 <- NULL 
+ark$cluster_9 <- NULL 
+
+ark_fin <- 
+  ark %>% 
+  discard(is.null) %>% 
+  map(~dea(
+    .x,
+    voi = "almhsq_quart",
+    variables = c("Sex", "age_scaled"),
+    wald = F
+  ))
+
+almi_quart_results <- ark_fin
+
+almi_quart <- map(ark_fin, summary_df) %>% 
+  bind_rows(.id="cluster") %>% 
+  mutate(analysis = "almi_quart") %>% 
+  relocate(analysis, .before = everything())
+
+
+ark <- 
+  map(sce, ~dea_qc(
+    .x,
+    voi = "xamaxgrip_quart",
+    variables = c("Sex", "age_scaled")
+  ))
+
+ark$cluster_9 <- NULL 
+
+ark_fin <- 
+  ark %>% 
+  discard(is.null) %>% 
+  map(~dea(
+    .x,
+    voi = "xamaxgrip_quart",
+    variables = c("Sex", "age_scaled"),
+    wald = F
+  ))
+
+grip_quart_results <- ark_fin
+
+grip_quart <- map(ark_fin, summary_df) %>% 
+  bind_rows(.id="cluster") %>% 
+  mutate(analysis = "grip_quart") %>% 
+  relocate(analysis, .before = everything())
+
+
+ark <- 
+  map(sce, ~dea_qc(
+    .x,
+    voi = "xwspdms_quart",
+    variables = c("Sex", "age_scaled")
+  ))
+
+ark$cluster_9 <- NULL 
+
+ark_fin <- 
+  ark %>% 
+  discard(is.null) %>% 
+  map(~dea(
+    .x,
+    voi = "xwspdms_quart",
+    variables = c("Sex", "age_scaled"),
+    wald = F
+  ))
+
+gait_quart_results <- ark_fin
+
+gait_quart <- map(ark_fin, summary_df) %>% 
+  bind_rows(.id="cluster") %>% 
+  mutate(analysis = "gait_quart") %>% 
+  relocate(analysis, .before = everything())
+
+
+
+# Sarcopenia --------------------------------------------------------------
+
+ark <- 
+  map(sce, ~dea_qc(
+    .x,
+    voi = "status_binary",
+    variables = c("Sex", "age_scaled")
+  )) 
+
+ark$cluster_9 <- NULL 
+
+ark_fin <- 
+ark %>% 
+  discard(is.null) %>% 
+  map(~dea(
+    .x,
+    voi = "status_binary",
+    variables = c("Sex", "age_scaled"),
+    variable_format = catagorical
+  ))
+
+status_binary_results <- ark_fin
+
+status_binary <- map(ark_fin, summary_df) %>% 
+  bind_rows(.id="cluster") %>% 
+  mutate(analysis = "status_binary") %>% 
+  relocate(analysis, .before = everything())
+
+
+final <- bind_rows(almi_cont, 
+                   gait_cont, 
+                   grip_cont, 
+                   almi_quart, 
+                   gait_quart, 
+                   grip_quart, 
+                   status_binary)
+
+write_csv(final, "results/22-08-10-pseudobulk_by_cluster.csv")
+
+
+
+# Pulling <0.05 -----------------------------------------------------------
+
+pull_sigs <- function(results_list, analysis){
+  marf <- 
+    map(results_list, ~{.x %>% filter(padj<0.05)}) %>% 
+    bind_rows(.id="cluster") %>% 
+    mutate(analysis = analysis) %>% 
+    relocate(analysis, .before = everything())
+  return(marf)
+}
+
+gene_list_almi_cont <- pull_sigs(almi_cont_results, "almi_continuous")
+gene_list_gait_cont <- pull_sigs(gait_cont_results, "gait_continuous")
+gene_list_grip_cont <- pull_sigs(grip_cont_results, "grip_continuous")
+gene_list_almi_quart <- pull_sigs(almi_quart_results, "almi_quartiles")
+gene_list_gait_quart <- pull_sigs(gait_quart_results, "gait_quartiles")
+gene_list_grip_quart <- pull_sigs(grip_quart_results, "grip_quartiles")
+gene_list_status_binary <- pull_sigs(status_binary_results, "status_binary")
+
+final_gene_results_list <- 
+bind_rows(
+gene_list_almi_cont,
+gene_list_gait_cont, 
+gene_list_grip_cont, 
+gene_list_almi_quart, 
+gene_list_gait_quart, 
+gene_list_grip_quart, 
+gene_list_status_binary
+)
+
+clipr::write_clip(final_gene_results_list)
+
+
+
+# function(sce, voi){
+#   countsToUse <- counts[[sce]]
+#   colnames(countsToUse) <- colData(sce)[[ID]]
+#   y <- DGEList(countsToUse, samples=colData(sce))
+#   
+#   lose <- is.na(y$samples[[xwspdms]])
+#   y$samples <- y$samples[!lose, ]
+#   y$counts <- y$counts[,colnames(y$counts) %in% rownames(y$samples)]
+#   
+#   lose <- is.na(y$samples[[Sex]])
+#   y$samples <- y$samples[!lose, ]
+#   y$counts <- y$counts[,colnames(y$counts) %in% rownames(y$samples)]
+#   
+#   lose <- is.na(y$samples[[age]])
+#   y$samples <- y$samples[!lose, ]
+#   y$counts <- y$counts[,colnames(y$counts) %in% rownames(y$samples)]
+#   
+#   # design <- model.matrix(~xwspdms+Sex+age, y$samples)
+#   # design
+#   
+#   discarded <- y$samples$ncells < 20
+#   y <- y[,!discarded]
+#   summary(discarded)
+#   
+#   #keep <- filterByExpr(y, design=design)    # 11420 removed
+#   keep <- filterByExpr(y, group=y$samples[[xwspdms]])    # 11420 removed
+#   y <- y[keep, , keep.lib.sizes=FALSE] 
+#   summary(keep)
+#   
+#   # y <- calcNormFactors(y)
+#   # y$samples
+#   
+#   # par(mfrow=c(2,4))
+#   # for (i in seq_len(ncol(y))) {
+#   #   plotMD(y, column=i)
+#   # }
+#   
+#   # y$samples$xwspdms <- factor(y$samples$xwspdms)
+#   limma::plotMDS(cpm(y, log=TRUE), col = as.numeric(y$samples[[xwspdms]]))
+#   
+#   # y <- estimateDisp(y, design)
+#   # summary(y$trended.dispersion)
+#   # 
+#   # plotBCV(y)
+#   
+#   # GLM dispersions ---------------------------------------------------------
+#   
+#   # d2 <- estimateGLMCommonDisp(y_subbed,design)
+#   # d2 <- estimateGLMTrendedDisp(d2,design, method="auto")
+#   # # You can change method to "auto", "bin.spline", "power", "spline", "bin.loess".
+#   # # The default is "auto" which chooses "bin.spline" when > 200 tags and "power" otherwise.
+#   # d2 <- estimateGLMTagwiseDisp(d2,design)
+#   # plotBCV(d2)
+#   
+#   # Used if intercept removed -----------------------------------------------
+#   
+#   # fit <- glmQLFit(y_subbed, design, robust=TRUE)
+#   # cont <- limma::makeContrasts(xwspdmsYes-xwspdmsNo, levels=design)
+#   # res <- glmQLFTest(fit, contrast=cont)
+#   # topTags(res)$table
+#   # is.de <- decideTestsDGE(res)
+#   # baps <- summary(is.de)
+#   
+#   # fit <- glmFit(d2, design, robust=TRUE)
+#   # cont <- limma::makeContrasts(xwspdmsYes-xwspdmsNo, levels=design)
+#   # #res <- glmLRT(fit, contrast=c(1,-1,0,0))
+#   # res <- glmLRT(fit, contrast=cont)
+#   # topTags(res)$table
+#   # is.de <- decideTestsDGE(res)
+#   # baps <- summary(is.de)
+#   
+#   
+#   # Use if intercept in place -----------------------------------------------
+#   
+#   # fit <- glmQLFit(y, design, robust=TRUE)
+#   # 
+#   # summary(fit$var.prior)
+#   # summary(fit$df.prior)
+#   # 
+#   # plotQLDisp(fit)
+#   # 
+#   # #cont <- limma::makeContrasts(xwspdmsYes-xwspdmsNo, levels=design)
+#   # res <- glmQLFTest(fit, coef=2)
+#   # topTags(res)$table
+#   # is.de <- decideTestsDGE(res)
+#   # baps_2 <- summary(is.de)
+#   
+#   
+#   # DESeq2 ------------------------------------------------------------------
+#   
+#   dds <- DESeqDataSetFromMatrix(y$counts, 
+#                                 colData = y$samples, 
+#                                 design = ~Sex+age_scaled+xwspdms)
+#   
+#   # Transform counts for data visualization
+#   rld <- vst(dds, blind=TRUE)
+#   
+#   # Plot PCA
+#   DESeq2::plotPCA(rld, intgroup = "xwspdms")
+#   
+#   # Extract the rlog matrix from the object and compute pairwise correlation values
+#   rld_mat <- assay(rld)
+#   rld_cor <- cor(rld_mat)
+#   
+#   # Plot heatmap
+#   pheatmap::pheatmap(rld_cor, annotation = y$samples[, c("xwspdms"), drop=F])
+#   
+#   # Run DESeq2 differential expression analysis
+#   dds <- DESeq(dds)
+#   
+#   # Plot dispersion estimates
+#   plotDispEsts(dds)
+#   
+#   # Check the coefficients for the comparison
+#   resultsNames(dds)
+# }
+# 
+# # Generate results object
+# 
+# # res <- results(dds,
+# #                contrast = c("xwspdms", "3", "1"),   # For catagorical variables
+# #                alpha = 0.05)
+# # 
+# # res <- lfcShrink(dds,
+# #                  contrast =  c("xwspdms", "3", "1"),
+# #                  res=res,
+# #                  type = "ashr")
+# 
+# res <- results(dds,
+#                name = "xwspdms",
+#                alpha = 0.05)
+# 
+# # Shrink the log2 fold changes to be more appropriate using the apeglm method - 
+# # should cite [paper]() when using this method
+# res <- lfcShrink(dds,
+#                  coef = "xwspdms",
+#                  res=res,
+#                  type = "apeglm")
+# 
+# 
+# 
+# hist(res$pvalue, xlab="p value", main="Histogram of nominal p values")
+# 
+# # Turn the results object into a tibble for use with tidyverse functions
+# res_tbl <- 
+#   res %>%
+#   data.frame() %>%
+#   rownames_to_column(var="gene") %>%
+#   as_tibble() %>%
+#   arrange(padj, pvalue)
+# 
+# # Check results output
+# tart <- res_tbl 
+# 
+# # Set thresholds
+# padj_cutoff <- 0.05
+# 
+# # Subset the significant results
+# sig_res <- dplyr::filter(res_tbl, padj < padj_cutoff) %>%
+#   dplyr::arrange(padj)
+# 
+# # Check significant genes output
+# sig_res
+# 
+# # Scatterplot
+# ## ggplot of top genes
+# normalized_counts <- counts(dds, 
+#                             normalized = TRUE)
+# 
+# # Extract normalized counts for only the significant genes
+# sig_norm <- data.frame(normalized_counts) %>%
+#   rownames_to_column(var = "gene") %>%
+#   dplyr::filter(gene %in% sig_res$gene)
+# 
+# # # Set a color palette
+# # heat_colors <- RColorBrewer::brewer.pal(6, "YlOrRd")
+# 
+# # # Run pheatmap using the metadata data frame for the annotation
+# # pheatmap::pheatmap(sig_norm[ , 2:length(colnames(sig_norm))], 
+# #          color = heat_colors, 
+# #          cluster_rows = T, 
+# #          show_rownames = F,
+# #          annotation = y_subbed$samples[, c("xwspdms", "cluster_id")], 
+# #          border_color = NA, 
+# #          fontsize = 10, 
+# #          scale = "row", 
+# #          fontsize_row = 10, 
+# #          height = 20)    
+```
